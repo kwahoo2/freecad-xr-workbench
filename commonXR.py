@@ -67,6 +67,8 @@ import FreeCADGui as Gui
 
 from math import tan, pi
 
+import controllerXR as conXR
+
 ALL_SEVERITIES = (
     xr.DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
     | xr.DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT
@@ -187,6 +189,7 @@ class DockWidget(QDockWidget):
 class XRwidget(QOpenGLWidget):
     def __init__(self, parent=None, log_level=logging.WARNING):
         QOpenGLWidget.__init__(self, parent)
+        self.log_level = log_level
         self.setAttribute(Qt.WA_DeleteOnClose)
         self.context = QOpenGLContext.currentContext()
         # Attempt to disable vsync on the desktop window or
@@ -208,12 +211,12 @@ class XRwidget(QOpenGLWidget):
         ctx.setFormat(frmt)
         ctx.create()
         self.context = ctx
-        print (self.context)
 
         logging.basicConfig()
         self.logger = logging.getLogger("xr_viewer")
         self.logger.setLevel(log_level)
         self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(self.debug_callback_py)
+        self.logger.debug("OpenGL Context: %s", self.context)
         # drawing QOpenGLWidget mirror window may degrade frame timing
         self.mirror_window = True
         self.instance = None
@@ -250,6 +253,7 @@ class XRwidget(QOpenGLWidget):
         self.window_size = None
         self.enable_debug = True
         self.linux_steamvr_broken_destroy_instance = False
+        self.hand_count = 2
 
         self.prepare_xr_instance()
         self.prepare_xr_system()
@@ -257,8 +261,11 @@ class XRwidget(QOpenGLWidget):
         self.prepare_xr_session()
         self.prepare_xr_swapchain()
         self.prepare_xr_composition_layers()
+        self.prepare_xr_controls()
         self.setup_cameras()
-        self.setup_scene()
+        self.setup_controllers()
+        self.setup_scene() # have to be last, after cameras and controllers setup
+
 
         self.timer = QTimer()
         QObject.connect(self.timer, SIGNAL("timeout()"), self.frame)
@@ -314,9 +321,14 @@ class XRwidget(QOpenGLWidget):
             self.rootScene[eye_index].addChild(self.sgrp[eye_index])
             self.sgrp[eye_index].addChild(light)
             self.sgrp[eye_index].addChild(light2)
+            self.sgrp[eye_index].addChild(self.xr_con[0].get_controller_scenegraph())
+            self.sgrp[eye_index].addChild(self.xr_con[1].get_controller_scenegraph())
+            self.sgrp[eye_index].addChild(rot) # this rotation is only to make FC scene Z-Up
             self.sgrp[eye_index].addChild(scale)
-            self.sgrp[eye_index].addChild(rot)
-            self.sgrp[eye_index].addChild(sg) # add scenegraph
+            self.sgrp[eye_index].addChild(sg) # add FreeCAD active scenegraph
+
+    def setup_controllers(self):
+        self.xr_con = [conXR.xrController(0, log_level=self.log_level), conXR.xrController(1, log_level=self.log_level)] # inititialise scengraphs for controllers
 
     def prepare_xr_instance(self):
         discovered_extensions = xr.enumerate_instance_extension_properties()
@@ -349,7 +361,7 @@ class XRwidget(QOpenGLWidget):
             xr.PFN_xrGetOpenGLGraphicsRequirementsKHR
         )
         instance_props = xr.get_instance_properties(self.instance)
-        print(instance_props)
+        self.logger.debug("Instance properties: %s", instance_props)
         if platform.system() == 'Linux' and instance_props.runtime_name == b"SteamVR/OpenXR" and instance_props.runtime_version != 4294967296: # 4294967296 is linux_v1.14 1.14.16
             print("SteamVR/OpenXR on Linux detected, enabling workarounds")
             # Enabling workaround for https://github.com/ValveSoftware/SteamVR-for-Linux/issues/422,
@@ -460,13 +472,288 @@ class XRwidget(QOpenGLWidget):
             if eye_index == 1:
                 layer_view.sub_image.image_rect.offset.x = layer_view.sub_image.image_rect.extent.width
 
+    def prepare_xr_controls(self):
+        hand_count = self.hand_count
+        self.action_set = xr.create_action_set(
+            instance=self.instance,
+            create_info=xr.ActionSetCreateInfo(
+                action_set_name="baseactionset",
+                localized_action_set_name="Base Action Set",
+                priority=0,
+            ),
+        )
+
+        self.hand_paths = (xr.Path * hand_count)(
+            xr.string_to_path(self.instance, "/user/hand/left"),
+            xr.string_to_path(self.instance, "/user/hand/right"),
+        )
+
+        self.pose_action = xr.create_action(
+            action_set=self.action_set,
+            create_info=xr.ActionCreateInfo(
+                action_type=xr.ActionType.POSE_INPUT, # XR_ACTION_TYPE_POSE_INPUT
+                action_name="hand_pose",
+                localized_action_name="Hand pose",
+                count_subaction_paths=len(self.hand_paths),
+                subaction_paths=self.hand_paths,
+            ),
+        )
+
+        self.x_lever_action = xr.create_action(
+            action_set=self.action_set,
+            create_info=xr.ActionCreateInfo(
+                action_type=xr.ActionType.FLOAT_INPUT, # XR_ACTION_TYPE_FLOAT_INPUT
+                action_name="x_lever",
+                localized_action_name="Move a lever left or right",
+                count_subaction_paths=len(self.hand_paths),
+                subaction_paths=self.hand_paths,
+            ),
+        )
+
+        self.y_lever_action = xr.create_action(
+            action_set=self.action_set,
+            create_info=xr.ActionCreateInfo(
+                action_type=xr.ActionType.FLOAT_INPUT,
+                action_name="y_lever",
+                localized_action_name="Move a lever forward or backward",
+                count_subaction_paths=len(self.hand_paths),
+                subaction_paths=self.hand_paths,
+            ),
+        )
+
+        self.grab_action = xr.create_action(
+            action_set=self.action_set,
+            create_info=xr.ActionCreateInfo(
+                action_type=xr.ActionType.FLOAT_INPUT,
+                action_name="triggergrab",
+                localized_action_name="Grab Object with Trigger Button",
+                count_subaction_paths=len(self.hand_paths),
+                subaction_paths=self.hand_paths,
+            ),
+        )
+
+        pose_path = (xr.Path * hand_count)(
+            xr.string_to_path(self.instance, "/user/hand/left/input/grip/pose"),
+            xr.string_to_path(self.instance, "/user/hand/right/input/grip/pose"),
+        )
+
+        trigger_value_path = (xr.Path * hand_count)(
+            xr.string_to_path(self.instance, "/user/hand/left/input/trigger/value"),
+            xr.string_to_path(self.instance, "/user/hand/right/input/trigger/value"),
+        )
+
+        thumbstick_x_path = (xr.Path * hand_count)(
+            xr.string_to_path(self.instance, "/user/hand/left/input/thumbstick/x"),
+            xr.string_to_path(self.instance, "/user/hand/right/input/thumbstick/x"),
+        )
+
+        thumbstick_y_path = (xr.Path * hand_count)(
+            xr.string_to_path(self.instance, "/user/hand/left/input/thumbstick/y"),
+            xr.string_to_path(self.instance, "/user/hand/right/input/thumbstick/y"),
+        )
+
+        trackpad_x_path = (xr.Path * hand_count)(
+            xr.string_to_path(self.instance, "/user/hand/left/input/trackpad/x"),
+            xr.string_to_path(self.instance, "/user/hand/right/input/trackpad/x"),
+        )
+
+        trackpad_y_path = (xr.Path * hand_count)(
+            xr.string_to_path(self.instance, "/user/hand/left/input/trackpad/y"),
+            xr.string_to_path(self.instance, "/user/hand/right/input/trackpad/y"),
+        )
+
+        # Suggest bindings for the Valve Index Controller.
+        valve_index_bindings = [
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+        ]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(
+                    self.instance,
+                    "/interaction_profiles/valve/index_controller",
+                ),
+                count_suggested_bindings=len(valve_index_bindings),
+                suggested_bindings=(xr.ActionSuggestedBinding * len(valve_index_bindings))(*valve_index_bindings),
+            ),
+        )
+
+        # Suggest bindings for the Vive Controller.
+        vive_bindings = [
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+            xr.ActionSuggestedBinding(self.x_lever_action, trackpad_x_path[0]),
+            xr.ActionSuggestedBinding(self.x_lever_action, trackpad_x_path[1]),
+            xr.ActionSuggestedBinding(self.y_lever_action, trackpad_y_path[0]),
+            xr.ActionSuggestedBinding(self.y_lever_action, trackpad_y_path[1]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+        ]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(
+                    self.instance,
+                    "/interaction_profiles/htc/vive_controller",
+                ),
+                count_suggested_bindings=len(vive_bindings),
+                suggested_bindings=(xr.ActionSuggestedBinding * len(vive_bindings))(*vive_bindings),
+            ),
+        )
+
+        # Suggest bindings for the Oculus Touch Controller.
+        oculus_touch_bindings = [
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+        ]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(
+                    self.instance,
+                    "/interaction_profiles/oculus/touch_controller",
+                ),
+                count_suggested_bindings=len(oculus_touch_bindings),
+                suggested_bindings=(xr.ActionSuggestedBinding * len(oculus_touch_bindings))(*oculus_touch_bindings),
+            ),
+        )
+
+        # Suggest bindings for the Microsoft Motion Cotroller.
+        microsoft_motion_bindings = [
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+        ]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(
+                    self.instance,
+                    "/interaction_profiles/microsoft/motion_controller",
+                ),
+                count_suggested_bindings=len(microsoft_motion_bindings),
+                suggested_bindings=(xr.ActionSuggestedBinding * len(microsoft_motion_bindings))(*microsoft_motion_bindings),
+            ),
+        )
+
+        action_space_info = xr.ActionSpaceCreateInfo(
+            action=self.pose_action,
+            # pose_in_action_space # w already defaults to 1 in python...
+            subaction_path=self.hand_paths[0],
+        )
+
+        self.hand_space = (xr.Space * hand_count)(*([xr.Space()] * hand_count))
+
+        assert action_space_info.pose_in_action_space.orientation.w == 1
+        self.hand_space[0] = xr.create_action_space(
+            session=self.session,
+            create_info=action_space_info,
+        )
+
+        action_space_info = xr.ActionSpaceCreateInfo(
+            action=self.pose_action,
+            subaction_path=self.hand_paths[1],
+        )
+        assert action_space_info.pose_in_action_space.orientation.w == 1
+        self.hand_space[1] = xr.create_action_space(
+            session=self.session,
+            create_info=action_space_info,
+        )
+
+        xr.attach_session_action_sets(
+            session=self.session,
+            attach_info=xr.SessionActionSetsAttachInfo(
+                count_action_sets=1,
+                action_sets=ctypes.pointer(self.action_set),
+            ),
+        )
+
+    def update_xr_controls(self):
+        hand_count = self.hand_count
+        # Sync actions
+        active_action_set = xr.ActiveActionSet(self.action_set, xr.NULL_PATH)
+        xr.sync_actions(
+            self.session,
+            xr.ActionsSyncInfo(
+                count_active_action_sets=1,
+                active_action_sets=ctypes.pointer(active_action_set)
+            ),
+        )
+        # # Get pose and actions for each hand
+        for hand in range(hand_count):
+            # session.getActionStatePose(getInfo, poseState);
+            pose_state = xr.get_action_state_pose(
+                session=self.session,
+                get_info=xr.ActionStateGetInfo(
+                    action=self.pose_action,
+                    subaction_path=self.hand_paths[hand],
+                ),
+            )
+            # xrSpaceLocation contains "pose" field with position and orientation
+            space_location = xr.locate_space(
+                space=self.hand_space[hand],
+                base_space=self.projection_layer.space,
+                time=self.frame_state.predicted_display_time,
+            )
+
+            self.xr_con[hand].update_pose(space_location) # definition in controllerXR.py
+            # Update actions
+            x_lever_value = xr.get_action_state_float(
+                self.session,
+                xr.ActionStateGetInfo(
+                    action=self.x_lever_action,
+                    subaction_path=self.hand_paths[hand],
+                ),
+            )
+            y_lever_value = xr.get_action_state_float(
+                self.session,
+                xr.ActionStateGetInfo(
+                    action=self.y_lever_action,
+                    subaction_path=self.hand_paths[hand],
+                ),
+            )
+            grab_value = xr.get_action_state_float(
+                self.session,
+                xr.ActionStateGetInfo(
+                    action=self.grab_action,
+                    subaction_path=self.hand_paths[hand],
+                ),
+            )
+            self.xr_con[hand].update_lever(x_lever_value, y_lever_value)
+            self.xr_con[hand].update_grab(grab_value)
+
+
     def frame(self):
         self.poll_xr_events()
         if self.quit:
             return
         if self.start_xr_frame():
-            self.update_xr_views()
             if self.frame_state.should_render:
+                self.update_xr_views()
+                if self.session_state == xr.SessionState.FOCUSED:
+                    self.update_xr_controls()
                 # paintGL have to be called explicitly, otherwise VR goggles frame timing will be off
                 # update() is still necessary in another place to execute mirror window redraw
                 self.paintGL()
@@ -617,7 +904,6 @@ class XRwidget(QOpenGLWidget):
     def terminate(self):
         self.timer.stop()
         self.quit = True
-        print (self.context.surface())
         #self.context.makeCurrent(self.context.surface())
         if self.fbo_id is not None:
             GL.glDeleteFramebuffers(1, [self.fbo_id])
@@ -632,6 +918,13 @@ class XRwidget(QOpenGLWidget):
             xr.destroy_session(self.session)
             self.session = None
         self.system_id = None
+        if self.action_set is not None:
+            for hand in range(self.hand_count):
+                if self.hand_space[hand] is not None:
+                    xr.destroy_space(self.hand_space[hand])
+                    self.hand_space[hand] = None
+            xr.destroy_action_set(self.action_set)
+            self.action_set = None
         if self.instance is not None:
             # Workaround for https://github.com/ValveSoftware/SteamVR-for-Linux/issues/422
             # and https://github.com/ValveSoftware/SteamVR-for-Linux/issues/479
