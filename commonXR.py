@@ -533,8 +533,8 @@ class XRwidget(QOpenGLWidget):
         )
 
         pose_path = (xr.Path * hand_count)(
-            xr.string_to_path(self.instance, "/user/hand/left/input/grip/pose"),
-            xr.string_to_path(self.instance, "/user/hand/right/input/grip/pose"),
+            xr.string_to_path(self.instance, "/user/hand/left/input/aim/pose"),
+            xr.string_to_path(self.instance, "/user/hand/right/input/aim/pose"),
         )
 
         trigger_value_path = (xr.Path * hand_count)(
