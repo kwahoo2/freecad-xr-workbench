@@ -27,7 +27,7 @@ import ctypes
 import logging
 
 from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
-from PySide2.QtGui import QOpenGLContext, QSurfaceFormat
+from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger
 from PySide2.QtCore import Qt, QTimer, QObject, SIGNAL
 
 import shiboken2 as shiboken
@@ -207,9 +207,14 @@ class XRwidget(QOpenGLWidget):
         frmt.setAlphaBufferSize(8)
         frmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
         frmt.setSamples(8) # MSAA
+        frmt.setOption(QSurfaceFormat.DebugContext)
         ctx = QOpenGLContext()
         ctx.setFormat(frmt)
         ctx.create()
+        if ctx.hasExtension(b"GL_KHR_debug"):
+            print ("GL_KHR_debug extension available")
+        else:
+            print ("GL_KHR_debug extension NOT available")
         self.context = ctx
 
         logging.basicConfig()
@@ -390,6 +395,11 @@ class XRwidget(QOpenGLWidget):
     def initializeGL(self):
         funcs = self.context.functions()
         funcs.initializeOpenGLFunctions()
+        self.gl_logger = QOpenGLDebugLogger(self)
+        self.gl_logger.initialize()
+        self.gl_logger.messageLogged.connect(self.log_message)
+        self.gl_logger.startLogging()
+
         GL.glEnable(GL.GL_MULTISAMPLE)
         self.fbo_depth_buffer = GL.glGenRenderbuffers(1)
         GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, self.fbo_depth_buffer)
@@ -896,6 +906,7 @@ class XRwidget(QOpenGLWidget):
     def terminate(self):
         self.timer.stop()
         self.quit = True
+        self.gl_logger.stopLogging()
         #self.context.makeCurrent(self.context.surface())
         if self.fbo_id is not None:
             GL.glDeleteFramebuffers(1, [self.fbo_id])
@@ -935,6 +946,8 @@ class XRwidget(QOpenGLWidget):
     def enable_mirror(self):
         self.mirror_window = True
 
+    def log_message(self, message):
+        print(f"OpenGL Debug: {message.message()}")
 
 
 xr_dock_w = None
