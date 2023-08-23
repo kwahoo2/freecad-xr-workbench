@@ -268,7 +268,7 @@ class XRwidget(QOpenGLWidget):
 
 
         self.timer = QTimer()
-        QObject.connect(self.timer, SIGNAL("timeout()"), self.frame)
+        QObject.connect(self.timer, SIGNAL("timeout()"), self.update)
         self.timer.start(0)
 
     def debug_callback_py(
@@ -745,19 +745,6 @@ class XRwidget(QOpenGLWidget):
             self.xr_con[hand].update_grab(grab_value)
 
 
-    def frame(self):
-        self.poll_xr_events()
-        if self.quit:
-            return
-        if self.start_xr_frame():
-            if self.frame_state.should_render:
-                self.update_xr_views()
-                if self.session_state == xr.SessionState.FOCUSED:
-                    self.update_xr_controls()
-                # paintGL have to be called explicitly, otherwise VR goggles frame timing will be off
-                # update() is still necessary in another place to execute mirror window redraw
-                self.paintGL()
-            self.end_xr_frame()
 
     def poll_xr_events(self):
         while True:
@@ -843,63 +830,68 @@ class XRwidget(QOpenGLWidget):
             self.camera[eye_index].bottom.setValue(nearPlane * pfBottom)
 
     def paintGL(self):
-        self.oldfb = self.defaultFramebufferObject() # widget's (not context) DFO
-
-        ai = xr.SwapchainImageAcquireInfo(None)
-        swapchain_index = xr.acquire_swapchain_image(self.swapchain, ai)
-        wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
-        xr.wait_swapchain_image(self.swapchain, wi)
         if self.fbo_id != None: # make sure that initializeGL happened
-            GL.glUseProgram(0)
-            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
-            sw_image = self.swapchain_images[swapchain_index]
-            GL.glFramebufferTexture(
-                GL.GL_FRAMEBUFFER,
-                GL.GL_COLOR_ATTACHMENT0,
-                sw_image.image,
-                0,
-            )
-            w, h = self.render_target_size
-            # "render" to the swapchain image
-            GL.glEnable(GL.GL_SCISSOR_TEST)
-            GL.glScissor(0, 0, w // 2, h)
-            self.vpReg.setViewportPixels(0, 0, w // 2, h)
-            self.m_sceneManager.setViewportRegion(self.vpReg)
-            self.m_sceneManager.setSceneGraph(self.rootScene[0])
-            GL.glEnable(GL.GL_CULL_FACE)
-            GL.glEnable(GL.GL_DEPTH_TEST)
-            self.m_sceneManager.render()
-            GL.glDisable(GL.GL_CULL_FACE)
-            GL.glDisable(GL.GL_DEPTH_TEST)
+            self.poll_xr_events()
+            if self.quit:
+                return
+            if self.start_xr_frame():
+                if self.frame_state.should_render:
+                    self.update_xr_views()
+                    self.oldfb = self.defaultFramebufferObject() # widget's (not context) DFO
+                    ai = xr.SwapchainImageAcquireInfo(None)
+                    swapchain_index = xr.acquire_swapchain_image(self.swapchain, ai)
+                    wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
+                    xr.wait_swapchain_image(self.swapchain, wi)
+                    GL.glUseProgram(0)
+                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
+                    sw_image = self.swapchain_images[swapchain_index]
+                    GL.glFramebufferTexture(
+                        GL.GL_FRAMEBUFFER,
+                        GL.GL_COLOR_ATTACHMENT0,
+                        sw_image.image,
+                        0,
+                    )
+                    w, h = self.render_target_size
+                    # "render" to the swapchain image
+                    GL.glEnable(GL.GL_SCISSOR_TEST)
+                    GL.glScissor(0, 0, w // 2, h)
+                    self.vpReg.setViewportPixels(0, 0, w // 2, h)
+                    self.m_sceneManager.setViewportRegion(self.vpReg)
+                    self.m_sceneManager.setSceneGraph(self.rootScene[0])
+                    GL.glEnable(GL.GL_CULL_FACE)
+                    GL.glEnable(GL.GL_DEPTH_TEST)
+                    self.m_sceneManager.render()
+                    GL.glDisable(GL.GL_CULL_FACE)
+                    GL.glDisable(GL.GL_DEPTH_TEST)
 
-            GL.glScissor(w // 2, 0, w // 2, h)
-            self.vpReg.setViewportPixels(w // 2, 0, w // 2, h)
-            self.m_sceneManager.setViewportRegion(self.vpReg)
-            self.m_sceneManager.setSceneGraph(self.rootScene[1])
-            GL.glEnable(GL.GL_CULL_FACE)
-            GL.glEnable(GL.GL_DEPTH_TEST)
-            self.m_sceneManager.render()
-            GL.glDisable(GL.GL_CULL_FACE)
-            GL.glDisable(GL.GL_DEPTH_TEST)
+                    GL.glScissor(w // 2, 0, w // 2, h)
+                    self.vpReg.setViewportPixels(w // 2, 0, w // 2, h)
+                    self.m_sceneManager.setViewportRegion(self.vpReg)
+                    self.m_sceneManager.setSceneGraph(self.rootScene[1])
+                    GL.glEnable(GL.GL_CULL_FACE)
+                    GL.glEnable(GL.GL_DEPTH_TEST)
+                    self.m_sceneManager.render()
+                    GL.glDisable(GL.GL_CULL_FACE)
+                    GL.glDisable(GL.GL_DEPTH_TEST)
 
-            GL.glDisable(GL.GL_SCISSOR_TEST)
-            if self.mirror_window:
-                # fast blit from the fbo to the window surface
-                GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.oldfb)
-                GL.glBlitFramebuffer(
-                    0, 0, w, h, 0, 0,
-                    self.size().width(), self.size().height(),
-                    GL.GL_COLOR_BUFFER_BIT,
-                    GL.GL_NEAREST
-                )
-                self.update() # necessary just for mirror window, not VR goggles
-                            # (their rendering is triggered by paintGL placed in frame()
+                    GL.glDisable(GL.GL_SCISSOR_TEST)
 
-            GL.glFramebufferTexture(GL.GL_READ_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, 0, 0)
-            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+                    if self.mirror_window:
+                        # fast blit from the fbo to the window surface
+                        GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.oldfb)
+                        GL.glBlitFramebuffer(
+                            0, 0, w, h, 0, 0,
+                            self.size().width(), self.size().height(),
+                            GL.GL_COLOR_BUFFER_BIT,
+                            GL.GL_NEAREST
+                        )
+                    GL.glFramebufferTexture(GL.GL_READ_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, 0, 0)
+                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
-        ri = xr.SwapchainImageReleaseInfo()
-        xr.release_swapchain_image(self.swapchain, ri)
+                    ri = xr.SwapchainImageReleaseInfo()
+                    xr.release_swapchain_image(self.swapchain, ri)
+
+                self.end_xr_frame()
 
     def terminate(self):
         self.timer.stop()
