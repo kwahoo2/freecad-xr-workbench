@@ -914,13 +914,6 @@ class XRwidget(QOpenGLWidget):
         if self.fbo_depth_buffer is not None:
             GL.glDeleteRenderbuffers(1, [self.fbo_depth_buffer])
             self.fbo_depth_buffer = None
-        if self.swapchain is not None:
-            xr.destroy_swapchain(self.swapchain)
-            self.swapchain = None
-        if self.session is not None:
-            xr.destroy_session(self.session)
-            self.session = None
-        self.system_id = None
         if self.action_set is not None:
             for hand in range(self.hand_count):
                 if self.hand_space[hand] is not None:
@@ -928,6 +921,13 @@ class XRwidget(QOpenGLWidget):
                     self.hand_space[hand] = None
             xr.destroy_action_set(self.action_set)
             self.action_set = None
+        if self.swapchain is not None:
+            xr.destroy_swapchain(self.swapchain)
+            self.swapchain = None
+        if self.session is not None:
+            xr.destroy_session(self.session)
+            self.session = None
+        self.system_id = None
         if self.instance is not None:
             # Workaround for https://github.com/ValveSoftware/SteamVR-for-Linux/issues/422
             # and https://github.com/ValveSoftware/SteamVR-for-Linux/issues/479
