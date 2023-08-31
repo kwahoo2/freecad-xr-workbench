@@ -170,7 +170,7 @@ class DockWidget(QDockWidget):
         QDockWidget.__init__(self, parent)
         self.setAttribute(Qt.WA_DeleteOnClose)
         mw = Gui.getMainWindow()
-        self.xr_widget = XRwidget(log_level=logging.WARNING) # set log_level=logging.DEBUG for more info
+        self.xr_widget = XRwidget(log_level=logging.DEBUG) # set log_level=logging.DEBUG for more info
         self.setWidget(self.xr_widget)
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
 
@@ -809,6 +809,7 @@ class XRwidget(QWidget):
         return False
 
     def end_xr_frame(self):
+        self.ctx.makeCurrent(self.offs_surface)
         frame_end_info = xr.FrameEndInfo(
             self.frame_state.predicted_display_time,
             xr.EnvironmentBlendMode.OPAQUE
@@ -821,6 +822,7 @@ class XRwidget(QWidget):
                 layer_view.pose = eye_view.pose
             frame_end_info.layers = [ctypes.byref(self.projection_layer), ]
         xr.end_frame(self.session, frame_end_info)
+        self.ctx.doneCurrent()
 
     def update_xr_views(self):
         nearPlane = self.nearPlane
