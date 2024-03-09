@@ -62,6 +62,7 @@ from pivy.coin import SoTranslation
 from pivy.coin import SbRotation
 from pivy.coin import SoGroup
 from pivy.coin import SoRotationXYZ
+from pivy.coin import SoTransform
 
 import FreeCADGui as Gui
 
@@ -259,6 +260,12 @@ class XRwidget(QOpenGLWidget):
         self.enable_debug = True
         self.linux_steamvr_broken_destroy_instance = False
         self.hand_count = 2
+        self.old_time = 0
+        self.primary_con = 0 # set which controller should be used for primary functionality (eg. movement)
+        # 0 is the left one most systems
+        self.secondary_con = 1
+        self.user_mov_speed = 1.0 # adjust to user preferences
+        self.user_rot_speed = 1.0
 
         self.prepare_xr_instance()
         self.prepare_xr_system()
@@ -270,7 +277,6 @@ class XRwidget(QOpenGLWidget):
         self.setup_cameras()
         self.setup_controllers()
         self.setup_scene() # have to be last, after cameras and controllers setup
-
 
         self.timer = QTimer()
         QObject.connect(self.timer, SIGNAL("timeout()"), self.update)
@@ -293,6 +299,8 @@ class XRwidget(QOpenGLWidget):
         self.nearPlane = 0.01
         self.farPlane = 10000.0
         self.camera = [SoFrustumCamera(), SoFrustumCamera()]
+        self.hmdrot = SbRotation()
+        self.hmdpos = SbVec3f()
         # 0 - left eye, 1 - right eye
         for eye_index in range (2):
             self.camera[eye_index].viewportMapping.setValue(SoCamera.LEAVE_ALONE)
@@ -314,14 +322,13 @@ class XRwidget(QOpenGLWidget):
         rot = SoRotationXYZ() # rotate scene to set Z as vertical
         rot.axis.setValue(SoRotationXYZ.X)
         rot.angle.setValue(-pi/2)
-        self.camtrans = [SoTranslation(), SoTranslation()]
+        self.world_transform = SoTransform() # store complete transformation of world, including arttif movement
         self.cgrp = [SoGroup(), SoGroup()] # group for camera
         self.sgrp = [SoGroup(), SoGroup()] # group for scenegraph
         self.rootScene = [SoSeparator(), SoSeparator()]
         for eye_index in range (2):
             self.rootScene[eye_index].ref()
             self.rootScene[eye_index].addChild(self.cgrp[eye_index])
-            self.cgrp[eye_index].addChild(self.camtrans[eye_index])
             self.cgrp[eye_index].addChild(self.camera[eye_index])
             self.rootScene[eye_index].addChild(self.sgrp[eye_index])
             self.sgrp[eye_index].addChild(light)
@@ -701,6 +708,8 @@ class XRwidget(QOpenGLWidget):
         )
 
     def update_xr_controls(self):
+        if self.session_state != xr.SessionState.FOCUSED:
+            return
         hand_count = self.hand_count
         # Sync actions
         active_action_set = xr.ActiveActionSet(self.action_set, xr.NULL_PATH)
@@ -728,7 +737,7 @@ class XRwidget(QOpenGLWidget):
                 time=self.frame_state.predicted_display_time,
             )
 
-            self.xr_con[hand].update_pose(space_location) # definition in controllerXR.py
+            self.xr_con[hand].update_pose(space_location, self.world_transform) # definition in controllerXR.py
             # Update actions
             x_lever_value = xr.get_action_state_float(
                 self.session,
@@ -813,6 +822,50 @@ class XRwidget(QOpenGLWidget):
             frame_end_info.layers = [ctypes.byref(self.projection_layer), ]
         xr.end_frame(self.session, frame_end_info)
 
+    def update_xr_movement(self):
+        curr_time = self.frame_state.predicted_display_time / 1e9 # XrTime is measured in nanoseconds (int64)
+        frame_duration = curr_time - self.old_time
+        self.old_time = curr_time
+        final_mov_speed = frame_duration * self.user_mov_speed # translation (movement) speed
+        final_rot_speed =  frame_duration * self.user_rot_speed
+        transform_modifier = SoTransform() # transformation with movement at this particular moment
+        #*********************************************************************
+        # Arch-like movement
+        # analog stick/trackpad of the first controller
+        # moves viewer up/down and left/right
+        # analog stick/trackpad of the second controller
+        # rotates viewer around center of the HMD and moves forward/backward
+        # adjust self.primary_con and self.secondary_con to your prefereces
+        #*********************************************************************
+        # qx, qz, qz, qw = xr_con[self.primary_con].get_local_q() # retrieves rotation of the controller
+        qx = self.hmdrot.getValue()[0]
+        qy = self.hmdrot.getValue()[1]
+        qz = self.hmdrot.getValue()[2]
+        qw = self.hmdrot.getValue()[3]
+        # https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
+        mat02 = 2 * qx * qz + 2 * qy * qw
+        mat22 = 1 - 2 * qx * qx - 2 * qy * qy
+        z0 = mat02
+        z2 = mat22
+        # primary controller
+        xaxis = self.xr_con[self.primary_con].get_buttons_states().lever_x
+        yaxis = self.xr_con[self.primary_con].get_buttons_states().lever_y
+        step = SbVec3f(0, yaxis * final_mov_speed, 0)
+        step = step + SbVec3f(xaxis * z2 * final_mov_speed, 0, -xaxis * z0 * final_mov_speed)
+        transform_modifier.center.setValue(self.hmdpos)
+        transform_modifier.translation.setValue(step)
+        self.world_transform.combineLeft(transform_modifier)
+        # secondary controller
+        xaxis = self.xr_con[self.secondary_con].get_buttons_states().lever_x
+        yaxis = self.xr_con[self.secondary_con].get_buttons_states().lever_y
+        step = SbVec3f(-yaxis * z0 * final_mov_speed, 0, -yaxis * z2 * final_mov_speed)
+        transform_modifier.center.setValue(self.hmdpos)
+        transform_modifier.translation.setValue(step)
+        world_z_rot = SbRotation(SbVec3f(0, 1, 0), -xaxis)
+        world_z_rot.scaleAngle(final_rot_speed)
+        transform_modifier.rotation.setValue(world_z_rot)
+        self.world_transform.combineLeft(transform_modifier)
+
     def update_xr_views(self):
         nearPlane = self.nearPlane
         farPlane = self.farPlane
@@ -823,14 +876,22 @@ class XRwidget(QOpenGLWidget):
         )
         vs, self.eye_view_states = xr.locate_views(self.session, vi)
         for eye_index, view_state in enumerate(self.eye_view_states):
-            hmdrot = SbRotation(view_state.pose.orientation.x, view_state.pose.orientation.y, view_state.pose.orientation.z, view_state.pose.orientation.w)
-            hmdpos = SbVec3f(view_state.pose.position.x, view_state.pose.position.y, view_state.pose.position.z) #get global position and orientation for both cameras
+            self.hmdrot = SbRotation(view_state.pose.orientation.x, view_state.pose.orientation.y, view_state.pose.orientation.z, view_state.pose.orientation.w)
+            self.hmdpos = SbVec3f(view_state.pose.position.x, view_state.pose.position.y, view_state.pose.position.z) #get global position and orientation for both cameras
+            cam_transform = SoTransform()
+            cam_transform.translation.setValue(self.world_transform.translation.getValue()) #transfer values only
+            cam_transform.rotation.setValue(self.world_transform.rotation.getValue())
+            cam_transform.center.setValue(self.world_transform.center.getValue())
+            hmd_transform = SoTransform()
+            hmd_transform.translation.setValue(self.hmdpos)
+            hmd_transform.rotation.setValue(self.hmdrot)
+            cam_transform.combineLeft(hmd_transform) # combine real hmd and arificial (stick-driven) camera movement
             pfLeft = tan(view_state.fov.angle_left)
             pfRight = tan(view_state.fov.angle_right)
             pfTop = tan(view_state.fov.angle_up)
             pfBottom = tan(view_state.fov.angle_down)
-            self.camera[eye_index].orientation.setValue(hmdrot)
-            self.camera[eye_index].position.setValue(hmdpos)
+            self.camera[eye_index].orientation.setValue(cam_transform.rotation.getValue())
+            self.camera[eye_index].position.setValue(cam_transform.translation.getValue())
             self.camera[eye_index].aspectRatio.setValue((pfTop - pfBottom)/(pfRight - pfLeft))
             self.camera[eye_index].nearDistance.setValue(nearPlane)
             self.camera[eye_index].farDistance.setValue(farPlane)
@@ -846,6 +907,8 @@ class XRwidget(QOpenGLWidget):
                 return
             if self.start_xr_frame():
                 if self.frame_state.should_render:
+                    self.update_xr_controls()
+                    self.update_xr_movement()
                     self.update_xr_views()
                     self.oldfb = self.defaultFramebufferObject() # widget's (not context) DFO
                     ai = xr.SwapchainImageAcquireInfo(None)
