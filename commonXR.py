@@ -171,7 +171,7 @@ class DockWidget(QDockWidget):
         QDockWidget.__init__(self, parent)
         self.setAttribute(Qt.WA_DeleteOnClose)
         mw = Gui.getMainWindow()
-        self.xr_widget = XRwidget(log_level=logging.DEBUG) # set log_level=logging.DEBUG for more info
+        self.xr_widget = XRwidget(log_level=logging.WARNING) # set log_level=logging.DEBUG for more info
         self.setWidget(self.xr_widget)
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
 
@@ -961,43 +961,13 @@ class XRwidget(QWidget):
 
                     GL.glDisable(GL.GL_SCISSOR_TEST)
 
-                    '''w, h = self.render_target_size
-                    GL.glEnable(GL.GL_SCISSOR_TEST)
-                    GL.glScissor(0, 0, w // 2, h)
-                    GL.glClearColor(0, 1, 0, 1)
-                    GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-                    GL.glScissor(w // 2, 0, w // 2, h)
-                    GL.glClearColor(0, 0, 1, 1)
-                    GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
-                    GL.glDisable(GL.GL_SCISSOR_TEST)'''
-                    # #
                     ri = xr.SwapchainImageReleaseInfo()
                     xr.release_swapchain_image(self.swapchain, ri)
 
                     GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
                     self.ctx.doneCurrent()
 
-                    #if self.mirror_window:
-                    #    self.update() # update the QOpenGLWidget itself
-
                 self.end_xr_frame()
-
-    '''def paintGL(self):
-        pass
-        if self.fbo_id != None:
-            w, h = self.render_target_size
-            self.oldfb = self.defaultFramebufferObject() # widget's (not context) DFO
-            # fast blit from the fbo to the window surface
-            GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.fbo_id)
-            GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.oldfb)
-            GL.glBlitFramebuffer(
-                0, 0, w, h, 0, 0,
-                self.size().width(), self.size().height(),
-                GL.GL_COLOR_BUFFER_BIT,
-                GL.GL_NEAREST
-            )
-            GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.oldfb)'''
-
 
     def terminate(self):
         self.timer.stop()
