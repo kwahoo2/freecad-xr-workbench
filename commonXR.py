@@ -718,18 +718,20 @@ class XRwidget(QWidget):
         )
 
     def update_xr_controls(self):
-        if self.session_state != xr.SessionState.FOCUSED:
-            return
         hand_count = self.hand_count
         # Sync actions
         active_action_set = xr.ActiveActionSet(self.action_set, xr.NULL_PATH)
-        xr.sync_actions(
-            self.session,
-            xr.ActionsSyncInfo(
-                count_active_action_sets=1,
-                active_action_sets=ctypes.pointer(active_action_set)
-            ),
-        )
+        try:
+            xr.sync_actions(
+                self.session,
+                xr.ActionsSyncInfo(
+                    count_active_action_sets=1,
+                    active_action_sets=ctypes.pointer(active_action_set)
+                ),
+            )
+        except xr.exception.SessionNotFocused:
+            self.logger.debug("session  not focused")
+            return
         # # Get pose and actions for each hand
         for hand in range(hand_count):
             # session.getActionStatePose(getInfo, poseState);
