@@ -25,11 +25,19 @@ import logging
 
 import os
 
+from dataclasses import dataclass
+
 from pivy.coin import SoSeparator
 from pivy.coin import SbVec3f, SbRotation
 from pivy.coin import SoTransform
 from pivy.coin import SoCube
 from pivy.coin import SoInput, SoDB
+
+@dataclass
+class ButtonsState:
+    grab: float = 0.0
+    lever_x: float = 0.0
+    lever_y: float = 0.0
 
 class xrController:
     def __init__(self, iden = 0, log_level=logging.WARNING):
@@ -38,6 +46,8 @@ class xrController:
         self.logger.setLevel(log_level)
         self.controller_sep = SoSeparator() # this separator contains everything that moves with controller
         self.iden = iden
+        self.buttons_state = ButtonsState()
+        self.con_localtransform = SoTransform()
         self.con_transform = SoTransform()
         self.add_controller_shape()
 
@@ -68,23 +78,40 @@ class xrController:
     def get_controller_scenegraph(self):
         return self.controller_sep
 
-    def update_pose(self, space_location):
+    def update_pose(self, space_location, world_transform):
         con_rot = SbRotation(space_location.pose.orientation.x,
                             space_location.pose.orientation.y,space_location.pose.orientation.z, space_location.pose.orientation.w)
         con_pos = SbVec3f(space_location.pose.position.x, space_location.pose.position.y,
                         space_location.pose.position.z)
-        self.con_transform.rotation.setValue(con_rot)
-        self.con_transform.translation.setValue(con_pos)
+        con_worldtransform = SoTransform()
+        con_worldtransform.translation.setValue(world_transform.translation.getValue())
+        con_worldtransform.rotation.setValue(world_transform.rotation.getValue())
+        con_worldtransform.center.setValue(world_transform.center.getValue())
+        self.con_localtransform.translation.setValue(con_pos)
+        self.con_localtransform.rotation.setValue(con_rot)
+        con_worldtransform.combineLeft(self.con_localtransform) # combine real hmd and arificial (stick-driven) movement
+        self.con_transform.rotation.setValue(con_worldtransform.rotation.getValue())
+        self.con_transform.translation.setValue(con_worldtransform.translation.getValue())
         self.con_transform.center.setValue(SbVec3f(0, 0, 0))
 
     def update_lever(self, x_lever_value, y_lever_value):
-        x_axis = x_lever_value.current_state
-        y_axis = y_lever_value.current_state
-        self.logger.debug("Controller %d X %.2f Y %.2f", self.iden, x_axis, y_axis)
+        self.buttons_state.lever_x = x_lever_value.current_state
+        self.buttons_state.lever_y = y_lever_value.current_state
+        self.logger.debug("Controller %d X %.2f Y %.2f", self.iden, self.buttons_state.lever_x, self.buttons_state.lever_y)
 
     def update_grab(self, grab_value):
-        grab = grab_value.current_state
-        self.logger.debug("Controller %d Grab %.2f", self.iden, grab)
+        self.buttons_state.grab = grab_value.current_state
+        self.logger.debug("Controller %d Grab %.2f", self.iden, self.buttons_state.grab)
+
+    def get_local_q(self):
+        qx = self.con_localtransform.rotation.getValue().getValue()[0]
+        qy = self.con_localtransform.rotation.getValue().getValue()[1]
+        qz = self.con_localtransform.rotation.getValue().getValue()[2]
+        qw = self.con_localtransform.rotation.getValue().getValue()[3]
+        return qx, qy, qz, qw
+
+    def get_buttons_states(self):
+        return self.buttons_state
 
     def read_file(self, filename):
         # Open the input file
