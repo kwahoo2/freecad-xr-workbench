@@ -74,17 +74,14 @@ except ImportError:
     raise ImportError ("pyopenxr is required!")
 
 from pivy.coin import SoSeparator
-from pivy.coin import SoBaseColor
 from pivy.coin import SbColor
 from pivy.coin import SoSceneManager
 from pivy.coin import SbViewportRegion
 from pivy.coin import SoFrustumCamera
-from pivy.coin import SoPerspectiveCamera
 from pivy.coin import SbVec3f
 from pivy.coin import SoCamera
 from pivy.coin import SoDirectionalLight
 from pivy.coin import SoScale
-from pivy.coin import SoTranslation
 from pivy.coin import SbRotation
 from pivy.coin import SoGroup
 from pivy.coin import SoRotationXYZ
@@ -343,7 +340,7 @@ class XRwidget(QOpenGLWidget):
         light2.intensity.setValue(0.6)
         light2.color.setValue(0.8,0.8,1)
         scale = SoScale()
-        scale.scaleFactor.setValue(0.001, 0.001, 0.001) #OpenXR uses meters not milimeters
+        scale.scaleFactor.setValue(0.001, 0.001, 0.001) #OpenXR uses meters not millimeters
         sg = Gui.ActiveDocument.ActiveView.getSceneGraph()#get active scenegraph
         rot = SoRotationXYZ() # rotate scene to set Z as vertical
         rot.axis.setValue(SoRotationXYZ.X)
@@ -366,7 +363,7 @@ class XRwidget(QOpenGLWidget):
             self.sgrp[eye_index].addChild(sg) # add FreeCAD active scenegraph
 
     def setup_controllers(self):
-        self.xr_con = [conXR.xrController(0, log_level=self.log_level), conXR.xrController(1, log_level=self.log_level)] # inititialise scengraphs for controllers
+        self.xr_con = [conXR.xrController(0, log_level=self.log_level), conXR.xrController(1, log_level=self.log_level)] # initialise scengraphs for controllers
 
     def prepare_xr_instance(self):
         discovered_extensions = xr.enumerate_instance_extension_properties()
@@ -689,7 +686,7 @@ class XRwidget(QOpenGLWidget):
             ),
         )
 
-        # Suggest bindings for the Microsoft Motion Cotroller.
+        # Suggest bindings for the Microsoft Motion Controller.
         microsoft_motion_bindings = [
             xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
             xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
