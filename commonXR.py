@@ -26,26 +26,51 @@
 import ctypes
 import logging
 
-from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
-from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger
-from PySide2.QtCore import Qt, QTimer, QObject, SIGNAL
-
-import shiboken2 as shiboken
+try:
+    from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
+    from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger
+    from PySide2.QtCore import Qt, QTimer, QObject, SIGNAL
+    import shiboken2 as shiboken
+except ImportError:
+    try:
+        from PySide6.QtWidgets import QDockWidget
+        from PySide6.QtOpenGLWidgets import QOpenGLWidget
+        from PySide6.QtOpenGL import QOpenGLDebugLogger
+        from PySide6.QtGui import QOpenGLContext, QSurfaceFormat
+        from PySide6.QtCore import Qt, QTimer, QObject, SIGNAL
+        import shiboken6 as shiboken
+    except ImportError:
+        raise ImportError ("Neither PySide2 nor PySide6 found!")
 
 import platform
+
+windowing_interface = ""
+
 try:
     from OpenGL import GL
     if platform.system() == "Windows":
         from OpenGL import WGL
+        windowing_interface = "WGL"
     elif platform.system() == "Linux":
-        from OpenGL import GLX
+        try:
+            from OpenGL import GLX
+            windowing_interface = "GLX"
+        except ImportError:
+            try:
+                from OpenGL import EGL
+                windowing_interface = "EGL"
+                print ("EGL not yet implemented, please run on X11")
+            except ImportError:
+                print ("No Windowing Interface found!")
 except ImportError:
-    print ("PyOpenGL is required!")
+    raise ImportError ("PyOpenGL is required!")
 
 try:
     import xr
+    from xr.platform.linux import wl_display
+    LP_wl_display = ctypes.POINTER(wl_display)
 except ImportError:
-    print ("pyopenxr is required!")
+    raise ImportError ("pyopenxr is required!")
 
 from pivy.coin import SoSeparator
 from pivy.coin import SoBaseColor
@@ -231,12 +256,12 @@ class XRwidget(QOpenGLWidget):
         self.pxrDestroyDebugUtilsMessengerEXT = None
         self.pxrGetOpenGLGraphicsRequirementsKHR = None
         self.graphics_requirements = xr.GraphicsRequirementsOpenGLKHR()
-        if platform.system() == 'Windows':
+        if windowing_interface == 'WGL':
             self.graphics_binding = xr.GraphicsBindingOpenGLWin32KHR()
-
-        elif platform.system() == 'Linux':
+        elif windowing_interface == 'GLX':
             self.graphics_binding = xr.GraphicsBindingOpenGLXlibKHR()
-
+        elif windowing_interface == 'EGL':
+            self.graphics_binding = xr.GraphicsBindingOpenGLWaylandKHR()
         else:
             raise NotImplementedError('Unsupported platform')
 
@@ -439,13 +464,19 @@ class XRwidget(QOpenGLWidget):
         self.resize(self.render_target_size[0] // 4, self.render_target_size[1] // 4)
 
     def prepare_xr_session(self):
-        if platform.system() == 'Windows':
+        if windowing_interface == 'WGL':
             self.graphics_binding.h_dc = WGL.wglGetCurrentDC()
             self.graphics_binding.h_glrc = WGL.wglGetCurrentContext()
-        else:
+        elif windowing_interface == 'GLX':
             self.graphics_binding.x_display = GLX.glXGetCurrentDisplay()
             self.graphics_binding.glx_context = GLX.glXGetCurrentContext()
             self.graphics_binding.glx_drawable = GLX.glXGetCurrentDrawable()
+        elif windowing_interface == 'EGL':
+            display_instance = LP_wl_display(EGL.wl_display())
+            self.graphics_binding.display = display_instance
+        else:
+            print ("Cannot create XR Session")
+            return;
         pp = ctypes.cast(ctypes.pointer(self.graphics_binding), ctypes.c_void_p)
         sci = xr.SessionCreateInfo(0, self.system_id, next=pp)
         self.session = xr.create_session(self.instance, sci)
