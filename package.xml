@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+
+  <name>XR Virtual Reality Workbench</name>
+
+  <description>A Virtual Reality (OpenXR) workbench. View your models with VR goggles.</description>
+
+  <version>0.9.0</version>
+
+  <date>2024-09-28</date>
+
+  <maintainer email="adrian.v.przekwas@gmail.com">Adrian Przekwas</maintainer>
+
+  <license file="LICENSE">LGPL-3.0</license>
+
+  <pythonmin>3.11.0</pythonmin>
+
+  <url branch="main" type="repository">https://github.com/kwahoo2/freecad-xr-workbench</url>
+
+  <url type="readme">https://github.com/kwahoo2/freecad-xr-workbench/blob/main/README.md</url>
+
+  <icon>icons/Stepien_Glasses.svg</icon>
+
+  <content>
+    <workbench>
+      <classname>XRWorkbench</classname>
+      <subdirectory>./</subdirectory>
+      <depend>pyopenxr</depend>
+      <depend>PyOpenGL</depend>
+    </workbench>
+  </content>
+
+</package>
