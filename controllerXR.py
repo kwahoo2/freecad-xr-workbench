@@ -29,9 +29,12 @@ from dataclasses import dataclass
 
 from pivy.coin import SoSeparator
 from pivy.coin import SbVec3f, SbRotation
-from pivy.coin import SoTransform
-from pivy.coin import SoCube
+from pivy.coin import SoTransform, SoTranslation
+from pivy.coin import SoCube, SoSphere
 from pivy.coin import SoInput, SoDB
+from pivy.coin import SoVertexProperty, SoLineSet
+from pivy.coin import SoBaseColor, SbColor
+from pivy.coin import SoRayPickAction
 
 @dataclass
 class ButtonsState:
@@ -40,7 +43,7 @@ class ButtonsState:
     lever_y: float = 0.0
 
 class xrController:
-    def __init__(self, iden = 0, log_level=logging.WARNING):
+    def __init__(self, iden = 0, ray=False, log_level=logging.WARNING):
         logging.basicConfig()
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(log_level)
@@ -49,8 +52,13 @@ class xrController:
         self.buttons_state = ButtonsState()
         self.con_localtransform = SoTransform()
         self.con_transform = SoTransform()
+        if ray:
+            self.ray_sep = SoSeparator()
+            self.add_picking_ray()
+            self.update_ray_axis()
+        else:
+            self.ray_sep = None
         self.add_controller_shape()
-
 
     def add_controller_shape(self):
         con_sep = SoSeparator()
@@ -75,8 +83,28 @@ class xrController:
         con_sep.addChild(con_node)
         self.controller_sep.addChild(con_sep)
 
+    def add_picking_ray(self):
+        self.ray_vtxs = SoVertexProperty()
+        self.ray_vtxs.vertex.set1Value(0, 0, 0, 0)  # set first vertex, later update to center of the controller (global location)
+        self.ray_vtxs.vertex.set1Value(1, 0, 0, 1)  # set second vertex, later update to point of intersection ray with hit object (global location)
+        ray_line = SoLineSet()
+        ray_line.vertexProperty = self.ray_vtxs
+        ray_color = SoBaseColor()
+        ray_color.rgb = SbColor(1, 0, 0)
+        self.ray_sep.addChild(ray_color)
+        self.ray_sep.addChild(ray_line)
+        self.sph_trans = SoTranslation()
+        self.sph_trans.translation.setValue(0, 0, 0)
+        self.ray_sep.addChild(self.sph_trans)
+        ray_sph = SoSphere()
+        ray_sph.radius.setValue(0.02)
+        self.ray_sep.addChild(ray_sph)
+
     def get_controller_scenegraph(self):
         return self.controller_sep
+
+    def get_ray_scenegraph(self):
+        return self.ray_sep
 
     def update_pose(self, space_location, world_transform):
         con_rot = SbRotation(space_location.pose.orientation.x,
@@ -89,10 +117,48 @@ class xrController:
         con_worldtransform.center.setValue(world_transform.center.getValue())
         self.con_localtransform.translation.setValue(con_pos)
         self.con_localtransform.rotation.setValue(con_rot)
-        con_worldtransform.combineLeft(self.con_localtransform) # combine real hmd and arificial (stick-driven) movement
+        con_worldtransform.combineLeft(self.con_localtransform) # combine real hmd and artificial (stick-driven) movement
         self.con_transform.rotation.setValue(con_worldtransform.rotation.getValue())
         self.con_transform.translation.setValue(con_worldtransform.translation.getValue())
         self.con_transform.center.setValue(SbVec3f(0, 0, 0))
+
+    def update_ray_axis(self):
+        gqx = self.con_transform.rotation.getValue().getValue()[0]
+        gqy = self.con_transform.rotation.getValue().getValue()[1]
+        gqz = self.con_transform.rotation.getValue().getValue()[2]
+        gqw = self.con_transform.rotation.getValue().getValue()[3]
+
+        gmat02 = 2*gqx*gqz+2*gqy*gqw
+        gmat12 = 2*gqy*gqz-2*gqx*gqw
+        gmat22 = 1-2*gqx*gqx-2*gqy*gqy
+        self.ray_axis = SbVec3f(gmat02, gmat12, gmat22)
+
+    def find_picked_coin_object(self, separator, vp_reg, near_plane, far_plane):
+        self.update_ray_axis()
+        ray_start_vec = self.con_transform.translation.getValue()
+        ray_end_vec = self.con_transform.translation.getValue() - self.ray_axis
+
+        # picking ray
+        con_pick_action = SoRayPickAction(vp_reg)
+        con_pick_action.setRay(ray_start_vec, -self.ray_axis, near_plane, far_plane) # direction is reversed controller Z axis
+
+        self.ray_vtxs.vertex.set1Value(0, ray_start_vec)
+        self.ray_vtxs.vertex.set1Value(1, ray_end_vec)
+
+        con_pick_action.apply(separator)
+        picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
+        picked_point = con_pick_action.getPickedPoint()
+
+        is_point_picked = False
+
+        if (picked_point):
+            picked_p_coords = picked_point.getPoint()
+            self.sph_trans.translation.setValue(picked_p_coords)
+            self.ray_vtxs.vertex.set1Value(1, picked_p_coords)
+            is_point_picked = True
+            print ("CXR", picked_p_coords.getValue())
+
+        return picked_point, picked_p_coords.getValue() # returning value seems to be safer
 
     def update_lever(self, x_lever_value, y_lever_value):
         self.buttons_state.lever_x = x_lever_value.current_state

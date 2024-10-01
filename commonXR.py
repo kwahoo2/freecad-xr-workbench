@@ -319,8 +319,8 @@ class XRwidget(QOpenGLWidget):
 
 
     def setup_cameras(self):
-        self.nearPlane = 0.01
-        self.farPlane = 10000.0
+        self.near_plane = 0.01
+        self.far_plane = 10000.0
         self.camera = [SoFrustumCamera(), SoFrustumCamera()]
         self.hmdrot = SbRotation()
         self.hmdpos = SbVec3f()
@@ -330,9 +330,13 @@ class XRwidget(QOpenGLWidget):
 
     def  setup_scene(self):
         # coin3d setup
-        self.vpReg = SbViewportRegion(self.render_target_size[0], self.render_target_size[1])
-        self.m_sceneManager = SoSceneManager() #scene manager overhead over render manager seems to be pretty #small
-        self.m_sceneManager.setViewportRegion(self.vpReg)
+        self.vp_reg = SbViewportRegion(self.render_target_size[0], self.render_target_size[1])
+        self.m_sceneManager = SoSceneManager() # scene manager overhead over render manager seems to be pretty small
+        # only one picked_point, assuming user will use single hand for picking
+        self.coin_picked_point = None
+        self.coin_picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
+        self.coin_picked_point_is_new = False
+        self.m_sceneManager.setViewportRegion(self.vp_reg)
         self.m_sceneManager.setBackgroundColor(SbColor(0.0, 0.0, 0.8))
         light = SoDirectionalLight()
         light2 = SoDirectionalLight()
@@ -340,30 +344,34 @@ class XRwidget(QOpenGLWidget):
         light2.intensity.setValue(0.6)
         light2.color.setValue(0.8,0.8,1)
         scale = SoScale()
-        scale.scaleFactor.setValue(0.001, 0.001, 0.001) #OpenXR uses meters not millimeters
-        sg = Gui.ActiveDocument.ActiveView.getSceneGraph()#get active scenegraph
+        scale.scaleFactor.setValue(0.001, 0.001, 0.001) # OpenXR uses meters not millimeters
+        sg = Gui.ActiveDocument.ActiveView.getSceneGraph() # get active scenegraph
         rot = SoRotationXYZ() # rotate scene to set Z as vertical
         rot.axis.setValue(SoRotationXYZ.X)
         rot.angle.setValue(-pi/2)
-        self.world_transform = SoTransform() # store complete transformation of world, including arttif movement
+        self.world_transform = SoTransform() # store complete transformation of world, including artificial movement
+        self.world_separator = SoSeparator()
+        self.world_separator.addChild(rot) # this rotation is only to make FC scene Z-Up
+        self.world_separator.addChild(scale)
+        self.world_separator.addChild(sg) # add FreeCAD active scenegraph
         self.cgrp = [SoGroup(), SoGroup()] # group for camera
         self.sgrp = [SoGroup(), SoGroup()] # group for scenegraph
-        self.rootScene = [SoSeparator(), SoSeparator()]
+        self.root_scene = [SoSeparator(), SoSeparator()]
         for eye_index in range (2):
-            self.rootScene[eye_index].ref()
-            self.rootScene[eye_index].addChild(self.cgrp[eye_index])
+            self.root_scene[eye_index].ref()
+            self.root_scene[eye_index].addChild(self.cgrp[eye_index])
             self.cgrp[eye_index].addChild(self.camera[eye_index])
-            self.rootScene[eye_index].addChild(self.sgrp[eye_index])
+            self.root_scene[eye_index].addChild(self.sgrp[eye_index])
             self.sgrp[eye_index].addChild(light)
             self.sgrp[eye_index].addChild(light2)
-            self.sgrp[eye_index].addChild(self.xr_con[0].get_controller_scenegraph())
-            self.sgrp[eye_index].addChild(self.xr_con[1].get_controller_scenegraph())
-            self.sgrp[eye_index].addChild(rot) # this rotation is only to make FC scene Z-Up
-            self.sgrp[eye_index].addChild(scale)
-            self.sgrp[eye_index].addChild(sg) # add FreeCAD active scenegraph
+            for hand in range(len(self.xr_con)):
+                self.sgrp[eye_index].addChild(self.xr_con[hand].get_controller_scenegraph())
+                if self.xr_con[hand].get_ray_scenegraph():
+                    self.sgrp[eye_index].addChild(self.xr_con[hand].get_ray_scenegraph()) # ray for controller
+            self.sgrp[eye_index].addChild(self.world_separator) # add world (scene without controllers and gui elements)
 
     def setup_controllers(self):
-        self.xr_con = [conXR.xrController(0, log_level=self.log_level), conXR.xrController(1, log_level=self.log_level)] # initialise scengraphs for controllers
+        self.xr_con = [conXR.xrController(0, ray=False, log_level=self.log_level), conXR.xrController(1, ray=True, log_level=self.log_level)] # initialise scenegraphs for controllers
 
     def prepare_xr_instance(self):
         discovered_extensions = xr.enumerate_instance_extension_properties()
@@ -799,8 +807,18 @@ class XRwidget(QOpenGLWidget):
             )
             self.xr_con[hand].update_lever(x_lever_value, y_lever_value)
             self.xr_con[hand].update_grab(grab_value)
-
-
+            # teleport implementation
+            if self.xr_con[hand].get_ray_scenegraph():
+                if (self.xr_con[hand].get_buttons_states().grab >= 0.5): # do traversal only if trigger pressed, because it is expensive
+                # traverse only the world, avoid picking controller gizmos or other non-world objects
+                    self.coin_picked_point, self.coin_picked_p_coords =  self.xr_con[hand].find_picked_coin_object(self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
+                    if (self.coin_picked_point):
+                        self.coin_picked_point_is_new = True
+                if ((self.xr_con[hand].get_buttons_states().grab < 0.5) and (self.coin_picked_point_is_new)):
+                    self.coin_picked_point_is_new = False
+                    teleport_transform = SoTransform()
+                    teleport_transform.translation.setValue(SbVec3f(self.coin_picked_p_coords) - self.camera[0].position.getValue() + SbVec3f(0.0, self.hmdpos[1], 0.0))
+                    self.world_transform.combineRight(teleport_transform)
 
     def poll_xr_events(self):
         while True:
@@ -904,8 +922,8 @@ class XRwidget(QOpenGLWidget):
         self.world_transform.combineLeft(transform_modifier)
 
     def update_xr_views(self):
-        nearPlane = self.nearPlane
-        farPlane = self.farPlane
+        near_plane = self.near_plane
+        far_plane = self.far_plane
         vi = xr.ViewLocateInfo(
             xr.ViewConfigurationType.PRIMARY_STEREO,
             self.frame_state.predicted_display_time,
@@ -930,12 +948,12 @@ class XRwidget(QOpenGLWidget):
             self.camera[eye_index].orientation.setValue(cam_transform.rotation.getValue())
             self.camera[eye_index].position.setValue(cam_transform.translation.getValue())
             self.camera[eye_index].aspectRatio.setValue((pfTop - pfBottom)/(pfRight - pfLeft))
-            self.camera[eye_index].nearDistance.setValue(nearPlane)
-            self.camera[eye_index].farDistance.setValue(farPlane)
-            self.camera[eye_index].left.setValue(nearPlane * pfLeft)
-            self.camera[eye_index].right.setValue(nearPlane * pfRight)
-            self.camera[eye_index].top.setValue(nearPlane * pfTop)
-            self.camera[eye_index].bottom.setValue(nearPlane * pfBottom)
+            self.camera[eye_index].nearDistance.setValue(near_plane)
+            self.camera[eye_index].farDistance.setValue(far_plane)
+            self.camera[eye_index].left.setValue(near_plane * pfLeft)
+            self.camera[eye_index].right.setValue(near_plane * pfRight)
+            self.camera[eye_index].top.setValue(near_plane * pfTop)
+            self.camera[eye_index].bottom.setValue(near_plane * pfBottom)
 
     def paintGL(self):
         if self.fbo_id != None: # make sure that initializeGL happened
@@ -967,9 +985,9 @@ class XRwidget(QOpenGLWidget):
                     GL.glEnable(GL.GL_BLEND)
                     GL.glEnable(GL.GL_SCISSOR_TEST)
                     GL.glScissor(0, 0, w // 2, h)
-                    self.vpReg.setViewportPixels(0, 0, w // 2, h)
-                    self.m_sceneManager.setViewportRegion(self.vpReg)
-                    self.m_sceneManager.setSceneGraph(self.rootScene[0])
+                    self.vp_reg.setViewportPixels(0, 0, w // 2, h)
+                    self.m_sceneManager.setViewportRegion(self.vp_reg)
+                    self.m_sceneManager.setSceneGraph(self.root_scene[0])
                     GL.glEnable(GL.GL_CULL_FACE)
                     GL.glEnable(GL.GL_DEPTH_TEST)
                     self.m_sceneManager.render()
@@ -977,9 +995,9 @@ class XRwidget(QOpenGLWidget):
                     GL.glDisable(GL.GL_DEPTH_TEST)
 
                     GL.glScissor(w // 2, 0, w // 2, h)
-                    self.vpReg.setViewportPixels(w // 2, 0, w // 2, h)
-                    self.m_sceneManager.setViewportRegion(self.vpReg)
-                    self.m_sceneManager.setSceneGraph(self.rootScene[1])
+                    self.vp_reg.setViewportPixels(w // 2, 0, w // 2, h)
+                    self.m_sceneManager.setViewportRegion(self.vp_reg)
+                    self.m_sceneManager.setSceneGraph(self.root_scene[1])
                     GL.glEnable(GL.GL_CULL_FACE)
                     GL.glEnable(GL.GL_DEPTH_TEST)
                     self.m_sceneManager.render()
@@ -1036,8 +1054,8 @@ class XRwidget(QOpenGLWidget):
             if not self.linux_steamvr_broken_destroy_instance:
                 xr.destroy_instance(self.instance)
             self.instance = None
-        for i, rs in enumerate(self.rootScene):
-            self.rootScene[i].unref()
+        for i, rs in enumerate(self.root_scene):
+            self.root_scene[i].unref()
         self.context.doneCurrent()
         self.deleteLater()
         print ("XR terminated")
