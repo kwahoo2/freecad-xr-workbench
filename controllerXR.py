@@ -156,7 +156,6 @@ class xrController:
             self.sph_trans.translation.setValue(picked_p_coords)
             self.ray_vtxs.vertex.set1Value(1, picked_p_coords)
             is_point_picked = True
-            print ("CXR", picked_p_coords.getValue())
 
         return picked_point, picked_p_coords.getValue() # returning value seems to be safer
 

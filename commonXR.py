@@ -302,7 +302,7 @@ class XRwidget(QOpenGLWidget):
         self.setup_scene() # have to be last, after cameras and controllers setup
 
         self.timer = QTimer()
-        QObject.connect(self.timer, SIGNAL("timeout()"), self.update)
+        QObject.connect(self.timer, SIGNAL("timeout()"), self.update_render)
         self.timer.start(0)
 
     def debug_callback_py(
@@ -955,6 +955,14 @@ class XRwidget(QOpenGLWidget):
             self.camera[eye_index].top.setValue(near_plane * pfTop)
             self.camera[eye_index].bottom.setValue(near_plane * pfBottom)
 
+    def update_render(self):
+        if self.mirror_window:
+            self.update()
+        else:
+            self.makeCurrent()
+            self.paintGL()
+            self.doneCurrent()
+
     def paintGL(self):
         if self.fbo_id != None: # make sure that initializeGL happened
             self.poll_xr_events()
@@ -1026,8 +1034,8 @@ class XRwidget(QOpenGLWidget):
     def terminate(self):
         self.timer.stop()
         self.quit = True
+        self.makeCurrent()
         self.gl_logger.stopLogging()
-        #self.context.makeCurrent(self.context.surface())
         if self.fbo_id is not None:
             GL.glDeleteFramebuffers(1, [self.fbo_id])
             self.fbo_id = None
@@ -1056,7 +1064,7 @@ class XRwidget(QOpenGLWidget):
             self.instance = None
         for i, rs in enumerate(self.root_scene):
             self.root_scene[i].unref()
-        self.context.doneCurrent()
+        self.doneCurrent()
         self.deleteLater()
         print ("XR terminated")
 
