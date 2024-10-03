@@ -29,7 +29,7 @@ import logging
 try:
     from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
     from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger
-    from PySide2.QtCore import Qt, QTimer, QObject, SIGNAL
+    from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
     import shiboken2 as shiboken
 except ImportError:
     try:
@@ -37,7 +37,7 @@ except ImportError:
         from PySide6.QtOpenGLWidgets import QOpenGLWidget
         from PySide6.QtOpenGL import QOpenGLDebugLogger
         from PySide6.QtGui import QOpenGLContext, QSurfaceFormat
-        from PySide6.QtCore import Qt, QTimer, QObject, SIGNAL
+        from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
         import shiboken6 as shiboken
     except ImportError:
         raise ImportError ("Neither PySide2 nor PySide6 found!")
@@ -215,53 +215,6 @@ class XRwidget(QOpenGLWidget):
         QOpenGLWidget.__init__(self, parent)
         self.log_level = log_level
         self.setAttribute(Qt.WA_DeleteOnClose)
-        self.context = QOpenGLContext.currentContext()
-        # Attempt to disable vsync on the desktop window or
-        # it will interfere with the OpenXR frame loop timing
-        frmt = self.context.format()
-        frmt.setSwapInterval(0)
-        frmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-        frmt.setMajorVersion(4)
-        frmt.setMinorVersion(5)
-        frmt.setRedBufferSize(8)
-        frmt.setGreenBufferSize(8)
-        frmt.setBlueBufferSize(8)
-        frmt.setDepthBufferSize(24)
-        frmt.setStencilBufferSize(8)
-        frmt.setAlphaBufferSize(8)
-        frmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
-        frmt.setSamples(8) # MSAA
-        frmt.setOption(QSurfaceFormat.DebugContext)
-        ctx = QOpenGLContext()
-        ctx.setFormat(frmt)
-        ctx.create()
-        if ctx.hasExtension(b"GL_KHR_debug"):
-            print ("GL_KHR_debug extension available")
-        else:
-            print ("GL_KHR_debug extension NOT available")
-        self.context = ctx
-
-        logging.basicConfig()
-        self.logger = logging.getLogger("xr_viewer")
-        self.logger.setLevel(log_level)
-        self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(self.debug_callback_py)
-        self.logger.debug("OpenGL Context: %s", self.context)
-        # drawing QOpenGLWidget mirror window may degrade frame timing
-        self.mirror_window = True
-        self.instance = None
-        self.system_id = None
-        self.pxrCreateDebugUtilsMessengerEXT = None
-        self.pxrDestroyDebugUtilsMessengerEXT = None
-        self.pxrGetOpenGLGraphicsRequirementsKHR = None
-        self.graphics_requirements = xr.GraphicsRequirementsOpenGLKHR()
-        if windowing_interface == 'WGL':
-            self.graphics_binding = xr.GraphicsBindingOpenGLWin32KHR()
-        elif windowing_interface == 'GLX':
-            self.graphics_binding = xr.GraphicsBindingOpenGLXlibKHR()
-        elif windowing_interface == 'EGL':
-            self.graphics_binding = xr.GraphicsBindingOpenGLWaylandKHR()
-        else:
-            raise NotImplementedError('Unsupported platform')
 
         self.render_target_size = None
         self.window = None
@@ -282,16 +235,71 @@ class XRwidget(QOpenGLWidget):
         self.window_size = None
         self.enable_debug = True
         self.linux_steamvr_broken_destroy_instance = False
+        self.instance = None
+        self.system_id = None
+        self.pxrCreateDebugUtilsMessengerEXT = None
+        self.pxrDestroyDebugUtilsMessengerEXT = None
+        self.pxrGetOpenGLGraphicsRequirementsKHR = None
+        self.graphics_requirements = xr.GraphicsRequirementsOpenGLKHR()
+        if windowing_interface == 'WGL':
+            self.graphics_binding = xr.GraphicsBindingOpenGLWin32KHR()
+        elif windowing_interface == 'GLX':
+            self.graphics_binding = xr.GraphicsBindingOpenGLXlibKHR()
+        elif windowing_interface == 'EGL':
+            self.graphics_binding = xr.GraphicsBindingOpenGLWaylandKHR()
+        else:
+            raise NotImplementedError('Unsupported platform')
+        logging.basicConfig()
+        self.logger = logging.getLogger("xr_viewer")
+        self.logger.setLevel(log_level)
+        self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(self.debug_callback_py)
+
+        self.max_ss_count = 1 # swapchain sample count supported by runtime
+        self.prepare_xr_instance()
+        self.prepare_xr_system()
+        self.sample_count = self.max_ss_count # use maximum sample count supported by runtime
+        print ("Swapchain sample count:", self.sample_count)
+
+        self.context = QOpenGLContext.currentContext()
+        # Attempt to disable vsync on the desktop window or
+        # it will interfere with the OpenXR frame loop timing
+        frmt = self.context.format()
+        frmt.setSwapInterval(0)
+        frmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
+        frmt.setMajorVersion(4)
+        frmt.setMinorVersion(5)
+        frmt.setRedBufferSize(8)
+        frmt.setGreenBufferSize(8)
+        frmt.setBlueBufferSize(8)
+        frmt.setDepthBufferSize(24)
+        frmt.setStencilBufferSize(8)
+        frmt.setAlphaBufferSize(8)
+        frmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
+        frmt.setSamples(self.sample_count) # MSAA
+        frmt.setOption(QSurfaceFormat.DebugContext)
+        ctx = QOpenGLContext()
+        ctx.setFormat(frmt)
+        ctx.create()
+        if ctx.hasExtension(b"GL_KHR_debug"):
+            print ("GL_KHR_debug extension available")
+        else:
+            print ("GL_KHR_debug extension NOT available")
+        self.context = ctx
+
+        self.logger.debug("OpenGL Context: %s", self.context)
+        # drawing QOpenGLWidget mirror window may degrade frame timing
+        self.mirror_window = True
+
         self.hand_count = 2
         self.old_time = 0
         self.primary_con = 0 # set which controller should be used for primary functionality (eg. movement)
         # 0 is the left one most systems
         self.secondary_con = 1
+        self.frame_duration = 0
+        self.render_duration = 0
         self.user_mov_speed = 1.0 # adjust to user preferences
         self.user_rot_speed = 1.0
 
-        self.prepare_xr_instance()
-        self.prepare_xr_system()
         self.prepare_window()
         self.prepare_xr_session()
         self.prepare_xr_swapchain()
@@ -304,6 +312,10 @@ class XRwidget(QOpenGLWidget):
         self.timer = QTimer()
         QObject.connect(self.timer, SIGNAL("timeout()"), self.update_render)
         self.timer.start(0)
+
+        self.timer_gui = QTimer() # timer used to update non-vr things like widget title bar
+        QObject.connect(self.timer_gui, SIGNAL("timeout()"), self.update_gui)
+        self.timer_gui.start(100)
 
     def debug_callback_py(
             self,
@@ -328,7 +340,7 @@ class XRwidget(QOpenGLWidget):
         for eye_index in range (2):
             self.camera[eye_index].viewportMapping.setValue(SoCamera.LEAVE_ALONE)
 
-    def  setup_scene(self):
+    def setup_scene(self):
         # coin3d setup
         self.vp_reg = SbViewportRegion(self.render_target_size[0], self.render_target_size[1])
         self.m_sceneManager = SoSceneManager() # scene manager overhead over render manager seems to be pretty small
@@ -371,7 +383,7 @@ class XRwidget(QOpenGLWidget):
             self.sgrp[eye_index].addChild(self.world_separator) # add world (scene without controllers and gui elements)
 
     def setup_controllers(self):
-        self.xr_con = [conXR.xrController(0, ray=False, log_level=self.log_level), conXR.xrController(1, ray=True, log_level=self.log_level)] # initialise scenegraphs for controllers
+        self.xr_con = [conXR.xrController(self.primary_con, ray=False, log_level=self.log_level), conXR.xrController(self.secondary_con, ray=True, log_level=self.log_level)] # initialise scenegraphs for controllers
 
     def prepare_xr_instance(self):
         discovered_extensions = xr.enumerate_instance_extension_properties()
@@ -427,6 +439,7 @@ class XRwidget(QOpenGLWidget):
             self.instance, self.system_id, xr.ViewConfigurationType.PRIMARY_STEREO)
         assert len(view_config_views) == 2
         assert view_config_views[0].recommended_image_rect_height == view_config_views[1].recommended_image_rect_height
+        self.max_ss_count = view_config_views[0].max_swapchain_sample_count
         self.render_target_size = (
             view_config_views[0].recommended_image_rect_width * 2,
             view_config_views[0].recommended_image_rect_height)
@@ -444,7 +457,8 @@ class XRwidget(QOpenGLWidget):
         self.gl_logger.messageLogged.connect(self.log_message)
         self.gl_logger.startLogging()
 
-        GL.glEnable(GL.GL_MULTISAMPLE)
+        if (self.sample_count > 1):
+            GL.glEnable(GL.GL_MULTISAMPLE)
         self.fbo_depth_buffer = GL.glGenRenderbuffers(1)
         GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, self.fbo_depth_buffer)
         if self.swapchain_create_info.sample_count == 1:
@@ -508,7 +522,7 @@ class XRwidget(QOpenGLWidget):
     def prepare_xr_swapchain(self):
         self.swapchain_create_info.usage_flags = xr.SWAPCHAIN_USAGE_TRANSFER_DST_BIT
         self.swapchain_create_info.format = GL.GL_SRGB8_ALPHA8
-        self.swapchain_create_info.sample_count = 1
+        self.swapchain_create_info.sample_count = self.sample_count
         self.swapchain_create_info.array_size = 1
         self.swapchain_create_info.face_count = 1
         self.swapchain_create_info.mip_count = 1
@@ -879,10 +893,10 @@ class XRwidget(QOpenGLWidget):
 
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / 1e9 # XrTime is measured in nanoseconds (int64)
-        frame_duration = curr_time - self.old_time
+        self.frame_duration = curr_time - self.old_time
         self.old_time = curr_time
-        final_mov_speed = frame_duration * self.user_mov_speed # translation (movement) speed
-        final_rot_speed =  frame_duration * self.user_rot_speed
+        final_mov_speed = self.frame_duration * self.user_mov_speed # translation (movement) speed
+        final_rot_speed =  self.frame_duration * self.user_rot_speed
         transform_modifier = SoTransform() # transformation with movement at this particular moment
         #*********************************************************************
         # Arch-like movement
@@ -955,6 +969,10 @@ class XRwidget(QOpenGLWidget):
             self.camera[eye_index].top.setValue(near_plane * pfTop)
             self.camera[eye_index].bottom.setValue(near_plane * pfBottom)
 
+    def update_gui(self):
+        if self.mirror_window:
+            self.parentWidget().setWindowTitle("Render time: " + "{:.2f}".format(self.render_duration / 1e6) + " ms Predicted frame time: " + "{:.2f}".format(self.frame_duration * 1000) + " ms")
+
     def update_render(self):
         if self.mirror_window:
             self.update()
@@ -973,6 +991,8 @@ class XRwidget(QOpenGLWidget):
                     self.update_xr_controls()
                     self.update_xr_movement()
                     self.update_xr_views()
+                    ren_timer = QElapsedTimer()
+                    ren_timer.start()
                     self.oldfb = self.defaultFramebufferObject() # widget's (not context) DFO
                     ai = xr.SwapchainImageAcquireInfo(None)
                     swapchain_index = xr.acquire_swapchain_image(self.swapchain, ai)
@@ -993,6 +1013,7 @@ class XRwidget(QOpenGLWidget):
                     GL.glEnable(GL.GL_BLEND)
                     GL.glEnable(GL.GL_SCISSOR_TEST)
                     GL.glScissor(0, 0, w // 2, h)
+
                     self.vp_reg.setViewportPixels(0, 0, w // 2, h)
                     self.m_sceneManager.setViewportRegion(self.vp_reg)
                     self.m_sceneManager.setSceneGraph(self.root_scene[0])
@@ -1025,6 +1046,8 @@ class XRwidget(QOpenGLWidget):
                         )
                     GL.glFramebufferTexture(GL.GL_READ_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, 0, 0)
                     GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+
+                    self.render_duration = ren_timer.nsecsElapsed()
 
                     ri = xr.SwapchainImageReleaseInfo()
                     xr.release_swapchain_image(self.swapchain, ri)
