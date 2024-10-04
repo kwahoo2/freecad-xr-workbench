@@ -35,6 +35,7 @@ from pivy.coin import SoInput, SoDB
 from pivy.coin import SoVertexProperty, SoLineSet
 from pivy.coin import SoBaseColor, SbColor
 from pivy.coin import SoRayPickAction
+from pivy.coin import SoSwitch, SO_SWITCH_NONE, SO_SWITCH_ALL
 
 @dataclass
 class ButtonsState:
@@ -47,17 +48,18 @@ class xrController:
         logging.basicConfig()
         self.logger = logging.getLogger(__name__)
         self.logger.setLevel(log_level)
-        self.controller_sep = SoSeparator() # this separator contains everything that moves with controller
+        self.controller_node = SoSwitch() # this node contains everything that moves with controller, SoSwitch can behave like a standard node
+        self.controller_node.whichChild = SO_SWITCH_ALL
         self.iden = iden
         self.buttons_state = ButtonsState()
         self.con_localtransform = SoTransform()
         self.con_transform = SoTransform()
         if ray:
-            self.ray_sep = SoSeparator()
+            self.ray_node = SoSwitch()
             self.add_picking_ray()
             self.update_ray_axis()
         else:
-            self.ray_sep = None
+            self.ray_node = None
         self.add_controller_shape()
 
     def add_controller_shape(self):
@@ -81,7 +83,7 @@ class xrController:
             con_node.addChild(con_cube) #  replace controller with simple cube if the iv file not found
         con_sep.addChild(self.con_transform)
         con_sep.addChild(con_node)
-        self.controller_sep.addChild(con_sep)
+        self.controller_node.addChild(con_sep)
 
     def add_picking_ray(self):
         self.ray_vtxs = SoVertexProperty()
@@ -91,20 +93,22 @@ class xrController:
         ray_line.vertexProperty = self.ray_vtxs
         ray_color = SoBaseColor()
         ray_color.rgb = SbColor(1, 0, 0)
-        self.ray_sep.addChild(ray_color)
-        self.ray_sep.addChild(ray_line)
+        ray_sep = SoSeparator() # required since SoSwitch behaves like a node not like a separator
+        ray_sep.addChild(ray_color)
+        ray_sep.addChild(ray_line)
         self.sph_trans = SoTranslation()
         self.sph_trans.translation.setValue(0, 0, 0)
-        self.ray_sep.addChild(self.sph_trans)
+        ray_sep.addChild(self.sph_trans)
         ray_sph = SoSphere()
         ray_sph.radius.setValue(0.02)
-        self.ray_sep.addChild(ray_sph)
+        ray_sep.addChild(ray_sph)
+        self.ray_node.addChild(ray_sep)
 
     def get_controller_scenegraph(self):
-        return self.controller_sep
+        return self.controller_node
 
     def get_ray_scenegraph(self):
-        return self.ray_sep
+        return self.ray_node
 
     def update_pose(self, space_location, world_transform):
         con_rot = SbRotation(space_location.pose.orientation.x,
@@ -132,6 +136,20 @@ class xrController:
         gmat12 = 2*gqy*gqz-2*gqx*gqw
         gmat22 = 1-2*gqx*gqx-2*gqy*gqy
         self.ray_axis = SbVec3f(gmat02, gmat12, gmat22)
+
+    def show_ray(self):
+        if (self.ray_node):
+            self.ray_node.whichChild = SO_SWITCH_ALL
+
+    def hide_ray(self):
+        if (self.ray_node):
+            self.ray_node.whichChild = SO_SWITCH_NONE
+
+    def show_controller(self):
+        self.controller_node.whichChild = SO_SWITCH_ALL
+
+    def hide_controller(self):
+        self.controller_node.whichChild = SO_SWITCH_NONE
 
     def find_picked_coin_object(self, separator, vp_reg, near_plane, far_plane):
         self.update_ray_axis()

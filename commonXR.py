@@ -795,44 +795,49 @@ class XRwidget(QOpenGLWidget):
                 base_space=self.projection_layer.space,
                 time=self.frame_state.predicted_display_time,
             )
-
-            self.xr_con[hand].update_pose(space_location, self.world_transform) # definition in controllerXR.py
-            # Update actions
-            x_lever_value = xr.get_action_state_float(
-                self.session,
-                xr.ActionStateGetInfo(
-                    action=self.x_lever_action,
-                    subaction_path=self.hand_paths[hand],
-                ),
-            )
-            y_lever_value = xr.get_action_state_float(
-                self.session,
-                xr.ActionStateGetInfo(
-                    action=self.y_lever_action,
-                    subaction_path=self.hand_paths[hand],
-                ),
-            )
-            grab_value = xr.get_action_state_float(
-                self.session,
-                xr.ActionStateGetInfo(
-                    action=self.grab_action,
-                    subaction_path=self.hand_paths[hand],
-                ),
-            )
-            self.xr_con[hand].update_lever(x_lever_value, y_lever_value)
-            self.xr_con[hand].update_grab(grab_value)
-            # teleport implementation
-            if self.xr_con[hand].get_ray_scenegraph():
-                if (self.xr_con[hand].get_buttons_states().grab >= 0.5): # do traversal only if trigger pressed, because it is expensive
-                # traverse only the world, avoid picking controller gizmos or other non-world objects
-                    self.coin_picked_point, self.coin_picked_p_coords =  self.xr_con[hand].find_picked_coin_object(self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
-                    if (self.coin_picked_point):
-                        self.coin_picked_point_is_new = True
-                if ((self.xr_con[hand].get_buttons_states().grab < 0.5) and (self.coin_picked_point_is_new)):
-                    self.coin_picked_point_is_new = False
-                    teleport_transform = SoTransform()
-                    teleport_transform.translation.setValue(SbVec3f(self.coin_picked_p_coords) - self.camera[0].position.getValue() + SbVec3f(0.0, self.hmdpos[1], 0.0))
-                    self.world_transform.combineRight(teleport_transform)
+            if (space_location.location_flags & xr.SPACE_LOCATION_POSITION_VALID_BIT):
+                self.xr_con[hand].show_controller()
+                self.xr_con[hand].update_pose(space_location, self.world_transform) # definition in controllerXR.py
+                # Update actions
+                x_lever_value = xr.get_action_state_float(
+                    self.session,
+                    xr.ActionStateGetInfo(
+                        action=self.x_lever_action,
+                        subaction_path=self.hand_paths[hand],
+                    ),
+                )
+                y_lever_value = xr.get_action_state_float(
+                    self.session,
+                    xr.ActionStateGetInfo(
+                        action=self.y_lever_action,
+                        subaction_path=self.hand_paths[hand],
+                    ),
+                )
+                grab_value = xr.get_action_state_float(
+                    self.session,
+                    xr.ActionStateGetInfo(
+                        action=self.grab_action,
+                        subaction_path=self.hand_paths[hand],
+                    ),
+                )
+                self.xr_con[hand].update_lever(x_lever_value, y_lever_value)
+                self.xr_con[hand].update_grab(grab_value)
+                # teleport implementation
+                if self.xr_con[hand].get_ray_scenegraph():
+                    if (self.xr_con[hand].get_buttons_states().grab >= 0.5): # do traversal only if trigger pressed, because it is expensive
+                    # traverse only the world, avoid picking controller gizmos or other non-world objects
+                        self.xr_con[hand].show_ray()
+                        self.coin_picked_point, self.coin_picked_p_coords =  self.xr_con[hand].find_picked_coin_object(self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
+                        if (self.coin_picked_point):
+                            self.coin_picked_point_is_new = True
+                    if ((self.xr_con[hand].get_buttons_states().grab < 0.5) and (self.coin_picked_point_is_new)):
+                        self.coin_picked_point_is_new = False
+                        self.xr_con[hand].hide_ray()
+                        teleport_transform = SoTransform()
+                        teleport_transform.translation.setValue(SbVec3f(self.coin_picked_p_coords) - self.camera[0].position.getValue() + SbVec3f(0.0, self.hmdpos[1], 0.0))
+                        self.world_transform.combineRight(teleport_transform)
+            else:
+                self.xr_con[hand].hide_controller()
 
     def poll_xr_events(self):
         while True:
