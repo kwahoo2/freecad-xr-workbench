@@ -1,6 +1,7 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2024 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *                                                                         *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -20,29 +21,28 @@
 # *                                                                         *
 # ***************************************************************************
 
-import os
+import FreeCAD
+import FreeCADGui
 
-import FreeCADGui as Gui
+translate = FreeCAD.Qt.translate
 
-import commonXR as cxr
+def preferences():
+    return FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/freecad-xr-workbench")
 
-class XR_Mirror_Enable():
-    """A command opening the XR viewer mirror"""
+class PreferencesPage:
+    def __init__(self, parent=None):
+        self.form = FreeCADGui.PySideUic.loadUi(":preferences/XRPreferences.ui")
 
-    def GetResources(self):
-        return {
-            "Pixmap": "Display_enabled.svg",
-            "Accel"   : "M,E", # a default shortcut (optional)
-            "MenuText": "Enable mirror",
-            "ToolTip" : "Enables the VR view mirroring"}
+    def saveSettings(self):
+        pref = preferences()
+        pref.SetInt("LinearSpeed", self.form.linearSpeedSlider.value())
+        pref.SetInt("RotationalSpeed", self.form.rotSpeedSlider.value())
+        pref.SetInt("AmbientLightIntesity", self.form.ambiLiSlider.value())
+        pref.SetInt("DirectionalLightIntesity", self.form.dirLiSlider.value())
 
-    def Activated(self):
-        cxr.open_xr_mirror()
-        return
-
-    def IsActive(self):
-        """Here you can define if the command must be active or not (greyed) if certain conditions
-        are met or not. This function is optional."""
-        return True
-
-Gui.addCommand("enableMirror", XR_Mirror_Enable())
+    def loadSettings(self):
+        pref = preferences()
+        self.form.linearSpeedSlider.setValue(pref.GetInt("LinearSpeed", 50))
+        self.form.rotSpeedSlider.setValue(pref.GetInt("RotationalSpeed", 50))
+        self.form.ambiLiSlider.setValue(pref.GetInt("AmbientLightIntesity", 40))
+        self.form.dirLiSlider.setValue(pref.GetInt("DirectionalLightIntesity", 80))

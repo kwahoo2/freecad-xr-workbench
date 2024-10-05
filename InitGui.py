@@ -20,6 +20,8 @@
 # *                                                                         *
 # ***************************************************************************
 
+import XRWorkbench_rc
+
 class XRWorkbench (Workbench):
     def __init__(self):
         self.__class__.MenuText = "XR"
@@ -60,6 +62,15 @@ static char * ico_xpm[] = {
         self.appendToolbar("XR viewer", self.list) # creates a new toolbar with your commands
         self.appendMenu("XR menu", self.list) # creates a new menu
         # self.appendMenu(["An existing Menu", "My submenu"], self.list) # appends a submenu to an existing menu
+
+        from PySide.QtCore import QT_TRANSLATE_NOOP
+        import preferences
+        FreeCADGui.addLanguagePath(":/translations")
+        FreeCADGui.addIconPath(":/icons")
+        FreeCADGui.addPreferencePage(
+            preferences.PreferencesPage, QT_TRANSLATE_NOOP("QObject", "XRWorkbench")
+        )
+
 
     def Activated(self):
         """This function is executed whenever the workbench is activated"""

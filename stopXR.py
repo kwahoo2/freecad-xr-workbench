@@ -31,9 +31,7 @@ class XR_Stop():
 
     def GetResources(self):
         return {
-            "Pixmap": os.path.join(
-                os.path.dirname(__file__), "icons", "Glasses_disabled.svg"
-            ),
+            "Pixmap": "Glasses_disabled.svg",
             "Accel"   : "X,C", # a default shortcut (optional)
             "MenuText": "Close XR viewer",
             "ToolTip" : "Stops rendering in VR HMD"}

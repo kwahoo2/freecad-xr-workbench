@@ -1,0 +1,10 @@
+<RCC>
+    <qresource prefix="/">
+        <file>icons/Stepien_Glasses.svg</file>
+        <file>icons/Glasses_disabled.svg</file>
+        <file>icons/Display_enabled.svg</file>
+        <file>icons/Display_disabled.svg</file>
+        <file>icons/preferences-xrworkbench.svg</file>
+        <file>preferences/XRPreferences.ui</file>
+    </qresource>
+</RCC>

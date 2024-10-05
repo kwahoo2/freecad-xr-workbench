@@ -31,9 +31,7 @@ class XR_Mirror_Disable():
 
     def GetResources(self):
         return {
-            "Pixmap": os.path.join(
-                os.path.dirname(__file__), "icons", "Display_disabled.svg"
-            ),
+            "Pixmap": "Display_disabled.svg",
             "Accel"   : "M,D", # a default shortcut (optional)
             "MenuText": "Disable mirror",
             "ToolTip" : "Disables the VR view mirroring"}

@@ -81,6 +81,7 @@ from pivy.coin import SoFrustumCamera
 from pivy.coin import SbVec3f
 from pivy.coin import SoCamera
 from pivy.coin import SoDirectionalLight
+from pivy.coin import SoEnvironment
 from pivy.coin import SoScale
 from pivy.coin import SbRotation
 from pivy.coin import SoGroup
@@ -92,6 +93,7 @@ import FreeCADGui as Gui
 from math import tan, pi
 
 import controllerXR as conXR
+import preferences as pref
 
 ALL_SEVERITIES = (
     xr.DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
@@ -297,8 +299,11 @@ class XRwidget(QOpenGLWidget):
         self.secondary_con = 1
         self.frame_duration = 0
         self.render_duration = 0
-        self.user_mov_speed = 1.0 # adjust to user preferences
-        self.user_rot_speed = 1.0
+        # read from user preferences
+        self.user_mov_speed = pref.preferences().GetInt("LinearSpeed", 50) / 100
+        self.user_rot_speed = pref.preferences().GetInt("RotationalSpeed", 50) / 100
+        self.ambient_light_intensity = pref.preferences().GetInt("AmbientLightIntesity", 40) / 100
+        self.directional_light_intensity = pref.preferences().GetInt("DirectionalLightIntesity", 60) / 100
 
         self.prepare_window()
         self.prepare_xr_session()
@@ -348,13 +353,14 @@ class XRwidget(QOpenGLWidget):
         self.coin_picked_point = None
         self.coin_picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
         self.coin_picked_point_is_new = False
+        environ = SoEnvironment()
+        environ.ambientIntensity.setValue(self.ambient_light_intensity) # without ambient lighting some places would be completely dark
         self.m_sceneManager.setViewportRegion(self.vp_reg)
-        self.m_sceneManager.setBackgroundColor(SbColor(0.0, 0.0, 0.8))
+        self.m_sceneManager.setBackgroundColor(SbColor(0.6, 0.6, 0.8))
         light = SoDirectionalLight()
-        light2 = SoDirectionalLight()
-        light2.direction.setValue(-1,-1,-1)
-        light2.intensity.setValue(0.6)
-        light2.color.setValue(0.8,0.8,1)
+        light.direction.setValue(-1,-1,-1)
+        light.intensity.setValue(self.directional_light_intensity)
+        light.color.setValue(1, 0.8, 0.8)
         scale = SoScale()
         scale.scaleFactor.setValue(0.001, 0.001, 0.001) # OpenXR uses meters not millimeters
         sg = Gui.ActiveDocument.ActiveView.getSceneGraph() # get active scenegraph
@@ -374,8 +380,8 @@ class XRwidget(QOpenGLWidget):
             self.root_scene[eye_index].addChild(self.cgrp[eye_index])
             self.cgrp[eye_index].addChild(self.camera[eye_index])
             self.root_scene[eye_index].addChild(self.sgrp[eye_index])
+            self.sgrp[eye_index].addChild(environ)
             self.sgrp[eye_index].addChild(light)
-            self.sgrp[eye_index].addChild(light2)
             for hand in range(len(self.xr_con)):
                 self.sgrp[eye_index].addChild(self.xr_con[hand].get_controller_scenegraph())
                 if self.xr_con[hand].get_ray_scenegraph():

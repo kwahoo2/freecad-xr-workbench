@@ -33,9 +33,7 @@ class XR_Viewer():
 
     def GetResources(self):
         return {
-            "Pixmap": os.path.join(
-                os.path.dirname(__file__), "icons", "Stepien_Glasses.svg"
-            ),
+            "Pixmap": "Stepien_Glasses.svg",
             "Accel"   : "X,R", # a default shortcut (optional)
             "MenuText": "Open XR viewer",
             "ToolTip" : "Starts rendering in VR HMD"}
