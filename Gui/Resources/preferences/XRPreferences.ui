@@ -79,6 +79,23 @@
       </property>
      </widget>
     </item>
+    <item row="8" column="0">
+     <widget class="QSpinBox" name="msaaSpinBox">
+      <property name="minimum">
+       <number>1</number>
+      </property>
+      <property name="maximum">
+       <number>8</number>
+      </property>
+     </widget>
+    </item>
+    <item row="8" column="1">
+     <widget class="QLabel" name="label_5">
+      <property name="text">
+       <string>x MSAA</string>
+      </property>
+     </widget>
+    </item>
    </layout>
   </widget>
  </widget>

@@ -229,6 +229,7 @@ class XRwidget(QOpenGLWidget):
         self.swapchain = None
         self.swapchain_images = None
         self.fbo_id = None
+        self.fbo_msaa_id = None
         self.fbo_depth_buffer = None
         self.quit = False
         self.session_state = xr.SessionState.IDLE
@@ -256,12 +257,6 @@ class XRwidget(QOpenGLWidget):
         self.logger.setLevel(log_level)
         self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(self.debug_callback_py)
 
-        self.max_ss_count = 1 # swapchain sample count supported by runtime
-        self.prepare_xr_instance()
-        self.prepare_xr_system()
-        self.sample_count = self.max_ss_count # use maximum sample count supported by runtime
-        print ("Swapchain sample count:", self.sample_count)
-
         self.context = QOpenGLContext.currentContext()
         # Attempt to disable vsync on the desktop window or
         # it will interfere with the OpenXR frame loop timing
@@ -277,7 +272,7 @@ class XRwidget(QOpenGLWidget):
         frmt.setStencilBufferSize(8)
         frmt.setAlphaBufferSize(8)
         frmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
-        frmt.setSamples(self.sample_count) # MSAA
+        frmt.setSamples(1) # multiple samples not requires as MSAA done in another buffer
         frmt.setOption(QSurfaceFormat.DebugContext)
         ctx = QOpenGLContext()
         ctx.setFormat(frmt)
@@ -304,7 +299,10 @@ class XRwidget(QOpenGLWidget):
         self.user_rot_speed = pref.preferences().GetInt("RotationalSpeed", 50) / 100
         self.ambient_light_intensity = pref.preferences().GetInt("AmbientLightIntesity", 40) / 100
         self.directional_light_intensity = pref.preferences().GetInt("DirectionalLightIntesity", 60) / 100
+        self.sample_count = pref.preferences().GetInt("MSAA", 4) # MSAA number of samples
 
+        self.prepare_xr_instance()
+        self.prepare_xr_system()
         self.prepare_window()
         self.prepare_xr_session()
         self.prepare_xr_swapchain()
@@ -463,34 +461,62 @@ class XRwidget(QOpenGLWidget):
         self.gl_logger.messageLogged.connect(self.log_message)
         self.gl_logger.startLogging()
 
-        if (self.sample_count > 1):
-            GL.glEnable(GL.GL_MULTISAMPLE)
+        w, h = self.render_target_size
+        # configure MSAA
+        GL.glEnable(GL.GL_MULTISAMPLE)
+        self.fbo_msaa_id = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_msaa_id)
+        # create a multisampled color attachment texture
+        msaa_color_buf = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D_MULTISAMPLE, msaa_color_buf)
+        GL.glTexImage2DMultisample(GL.GL_TEXTURE_2D_MULTISAMPLE,
+                                    self.sample_count,
+                                    GL.GL_RGBA8,
+                                    w,
+                                    h,
+                                    GL.GL_TRUE)
+        GL.glBindTexture(GL.GL_TEXTURE_2D_MULTISAMPLE, 0)
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,
+                                  GL.GL_COLOR_ATTACHMENT0,
+                                  GL.GL_TEXTURE_2D_MULTISAMPLE,
+                                  msaa_color_buf,
+                                  0)
+        # create a multisampled renderbuffer object
         self.fbo_depth_buffer = GL.glGenRenderbuffers(1)
         GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, self.fbo_depth_buffer)
-        if self.swapchain_create_info.sample_count == 1:
-            GL.glRenderbufferStorage(
-                GL.GL_RENDERBUFFER,
-                GL.GL_DEPTH24_STENCIL8,
-                self.swapchain_create_info.width,
-                self.swapchain_create_info.height,
-            )
-        else:
-            GL.glRenderbufferStorageMultisample(
-                GL.GL_RENDERBUFFER,
-                self.swapchain_create_info.sample_count,
-                GL.GL_DEPTH24_STENCIL8,
-                self.swapchain_create_info.width,
-                self.swapchain_create_info.height,
-            )
-        self.fbo_id = GL.glGenFramebuffers(1)
-        GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.fbo_id)
+        GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER,
+                                            self.sample_count,
+                                            GL.GL_DEPTH24_STENCIL8,
+                                            w,
+                                            h)
+        GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, 0)
         GL.glFramebufferRenderbuffer(
             GL.GL_DRAW_FRAMEBUFFER,
             GL.GL_DEPTH_STENCIL_ATTACHMENT,
             GL.GL_RENDERBUFFER,
             self.fbo_depth_buffer,
         )
-        GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, 0)
+
+        # target framebuffer
+        self.fbo_id = GL.glGenFramebuffers(1)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
+
+        tex = GL.glGenTextures(1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, tex)
+        GL.glTexImage2D(GL.GL_TEXTURE_2D,
+                        0,
+                        GL.GL_RGBA8,
+                        w,
+                        h,
+                        0,
+                        GL.GL_RGBA,
+                        GL.GL_UNSIGNED_BYTE,
+                        None)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+        # only color buffer is needed
+        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, tex, 0)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
     def prepare_window(self):
         self.resize(self.render_target_size[0] // 4, self.render_target_size[1] // 4)
@@ -528,7 +554,7 @@ class XRwidget(QOpenGLWidget):
     def prepare_xr_swapchain(self):
         self.swapchain_create_info.usage_flags = xr.SWAPCHAIN_USAGE_TRANSFER_DST_BIT
         self.swapchain_create_info.format = GL.GL_SRGB8_ALPHA8
-        self.swapchain_create_info.sample_count = self.sample_count
+        self.swapchain_create_info.sample_count = 1
         self.swapchain_create_info.array_size = 1
         self.swapchain_create_info.face_count = 1
         self.swapchain_create_info.mip_count = 1
@@ -1010,14 +1036,7 @@ class XRwidget(QOpenGLWidget):
                     wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
                     xr.wait_swapchain_image(self.swapchain, wi)
                     GL.glUseProgram(0)
-                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
-                    sw_image = self.swapchain_images[swapchain_index]
-                    GL.glFramebufferTexture(
-                        GL.GL_FRAMEBUFFER,
-                        GL.GL_COLOR_ATTACHMENT0,
-                        sw_image.image,
-                        0,
-                    )
+                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_msaa_id)
                     w, h = self.render_target_size
                     # "render" to the swapchain image
                     GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
@@ -1046,8 +1065,30 @@ class XRwidget(QOpenGLWidget):
 
                     GL.glDisable(GL.GL_SCISSOR_TEST)
 
+                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
+                    sw_image = self.swapchain_images[swapchain_index]
+                    GL.glFramebufferTexture(
+                        GL.GL_FRAMEBUFFER,
+                        GL.GL_COLOR_ATTACHMENT0,
+                        sw_image.image,
+                        0,
+                    )
+
+                    GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.fbo_msaa_id)
+                    GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.fbo_id)
+                    GL.glBlitFramebuffer(
+                        0, 0, w, h, 0, 0,
+                        w, h,
+                        GL.GL_COLOR_BUFFER_BIT,
+                        GL.GL_NEAREST
+                    )
+                    self.render_duration = ren_timer.nsecsElapsed()
+
+                    ri = xr.SwapchainImageReleaseInfo()
+                    xr.release_swapchain_image(self.swapchain, ri)
                     if self.mirror_window:
                         # fast blit from the fbo to the window surface
+                        GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.fbo_id)
                         GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.oldfb)
                         GL.glBlitFramebuffer(
                             0, 0, w, h, 0, 0,
@@ -1055,13 +1096,7 @@ class XRwidget(QOpenGLWidget):
                             GL.GL_COLOR_BUFFER_BIT,
                             GL.GL_NEAREST
                         )
-                    GL.glFramebufferTexture(GL.GL_READ_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, 0, 0)
-                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
-
-                    self.render_duration = ren_timer.nsecsElapsed()
-
-                    ri = xr.SwapchainImageReleaseInfo()
-                    xr.release_swapchain_image(self.swapchain, ri)
+                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.oldfb)
 
                 self.end_xr_frame()
 

@@ -39,6 +39,7 @@ class PreferencesPage:
         pref.SetInt("RotationalSpeed", self.form.rotSpeedSlider.value())
         pref.SetInt("AmbientLightIntesity", self.form.ambiLiSlider.value())
         pref.SetInt("DirectionalLightIntesity", self.form.dirLiSlider.value())
+        pref.SetInt("MSAA", self.form.msaaSpinBox.value())
 
     def loadSettings(self):
         pref = preferences()
@@ -46,3 +47,5 @@ class PreferencesPage:
         self.form.rotSpeedSlider.setValue(pref.GetInt("RotationalSpeed", 50))
         self.form.ambiLiSlider.setValue(pref.GetInt("AmbientLightIntesity", 40))
         self.form.dirLiSlider.setValue(pref.GetInt("DirectionalLightIntesity", 80))
+        self.form.msaaSpinBox.setValue(pref.GetInt("MSAA", 4))
+
