@@ -27,15 +27,16 @@ from PySide.QtCore import QT_TRANSLATE_NOOP
 
 import commonXR as cxr
 
+
 class XR_Mirror_Enable():
     """A command opening the XR viewer mirror"""
 
     def GetResources(self):
         return {
             "Pixmap": "Display_enabled.svg",
-            "Accel"   : "M,E", # a default shortcut (optional)
+            "Accel": "M,E",  # a default shortcut (optional)
             "MenuText": QT_TRANSLATE_NOOP("XR_MirrorEnable", "Enable mirror"),
-            "ToolTip" : QT_TRANSLATE_NOOP("XR_MirrorEnable", "Enables the VR view mirroring")}
+            "ToolTip": QT_TRANSLATE_NOOP("XR_MirrorEnable", "Enables the VR view mirroring")}
 
     def Activated(self):
         cxr.open_xr_mirror()
@@ -45,5 +46,6 @@ class XR_Mirror_Enable():
         """Here you can define if the command must be active or not (greyed) if certain conditions
         are met or not. This function is optional."""
         return True
+
 
 Gui.addCommand("enableMirror", XR_Mirror_Enable())

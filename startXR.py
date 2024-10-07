@@ -27,17 +27,19 @@ import FreeCADGui as Gui
 import commonXR as cxr
 from PySide.QtCore import QT_TRANSLATE_NOOP
 
+
 class XR_Viewer():
     """A command opening the XR viewer"""
+
     def __init__(self):
-        self.xr_dock_w = None # XR docked window and OpenXR rendering object
+        self.xr_dock_w = None  # XR docked window and OpenXR rendering object
 
     def GetResources(self):
         return {
             "Pixmap": "Stepien_Glasses.svg",
-            "Accel"   : "X,R", # a default shortcut (optional)
+            "Accel": "X,R",  # a default shortcut (optional)
             "MenuText": QT_TRANSLATE_NOOP("XR_Start", "Open XR viewer"),
-            "ToolTip" : QT_TRANSLATE_NOOP("XR_Start", "Starts rendering in VR HMD")}
+            "ToolTip": QT_TRANSLATE_NOOP("XR_Start", "Starts rendering in VR HMD")}
 
     def Activated(self):
         cxr.open_xr_viewer()
@@ -46,6 +48,7 @@ class XR_Viewer():
     def IsActive(self):
         """Here you can define if the command must be active or not (greyed) if certain conditions
         are met or not. This function is optional."""
-        return True # True or False
+        return True  # True or False
+
 
 Gui.addCommand("startXR", XR_Viewer())

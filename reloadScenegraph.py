@@ -27,15 +27,16 @@ from PySide.QtCore import QT_TRANSLATE_NOOP
 
 import commonXR as cxr
 
+
 class XR_Reload_Scenegraph():
     """A command opening the XR viewer mirror"""
 
     def GetResources(self):
         return {
             "Pixmap": "Reload_scenegraph.svg",
-            "Accel"   : "R,S", # a default shortcut (optional)
+            "Accel": "R,S",  # a default shortcut (optional)
             "MenuText": QT_TRANSLATE_NOOP("XR_ReloadScenegraph", "Reload scenegraph"),
-            "ToolTip" : QT_TRANSLATE_NOOP("XR_ReloadScenegraph", "Reloads scenegraph and settings without session restart")}
+            "ToolTip": QT_TRANSLATE_NOOP("XR_ReloadScenegraph", "Reloads scenegraph and settings without session restart")}
 
     def Activated(self):
         cxr.reload_scenegraph()
@@ -45,5 +46,6 @@ class XR_Reload_Scenegraph():
         """Here you can define if the command must be active or not (greyed) if certain conditions
         are met or not. This function is optional."""
         return True
+
 
 Gui.addCommand("reloadScenegraph", XR_Reload_Scenegraph())

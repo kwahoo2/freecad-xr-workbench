@@ -26,12 +26,16 @@ import FreeCADGui
 
 translate = FreeCAD.Qt.translate
 
+
 def preferences():
-    return FreeCAD.ParamGet("User parameter:BaseApp/Preferences/Mod/freecad-xr-workbench")
+    return FreeCAD.ParamGet(
+        "User parameter:BaseApp/Preferences/Mod/freecad-xr-workbench")
+
 
 class PreferencesPage:
     def __init__(self, parent=None):
-        self.form = FreeCADGui.PySideUic.loadUi(":preferences/XRPreferences.ui")
+        self.form = FreeCADGui.PySideUic.loadUi(
+            ":preferences/XRPreferences.ui")
 
     def saveSettings(self):
         pref = preferences()
@@ -45,7 +49,8 @@ class PreferencesPage:
         pref = preferences()
         self.form.linearSpeedSlider.setValue(pref.GetInt("LinearSpeed", 50))
         self.form.rotSpeedSlider.setValue(pref.GetInt("RotationalSpeed", 50))
-        self.form.ambiLiSlider.setValue(pref.GetInt("AmbientLightIntesity", 40))
-        self.form.dirLiSlider.setValue(pref.GetInt("DirectionalLightIntesity", 80))
+        self.form.ambiLiSlider.setValue(
+            pref.GetInt("AmbientLightIntesity", 40))
+        self.form.dirLiSlider.setValue(
+            pref.GetInt("DirectionalLightIntesity", 80))
         self.form.msaaSpinBox.setValue(pref.GetInt("MSAA", 4))
-

@@ -23,6 +23,24 @@
 # ***************************************************************************
 
 
+import preferences as pref
+import controllerXR as conXR
+from math import tan, pi
+import FreeCADGui as Gui
+from pivy.coin import SoTransform
+from pivy.coin import SoRotationXYZ
+from pivy.coin import SoGroup
+from pivy.coin import SbRotation
+from pivy.coin import SoScale
+from pivy.coin import SoEnvironment
+from pivy.coin import SoDirectionalLight
+from pivy.coin import SoCamera
+from pivy.coin import SbVec3f
+from pivy.coin import SoFrustumCamera
+from pivy.coin import SbViewportRegion
+from pivy.coin import SoSceneManager
+from pivy.coin import SbColor
+from pivy.coin import SoSeparator
 import ctypes
 import logging
 
@@ -40,7 +58,7 @@ except ImportError:
         from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
         import shiboken6 as shiboken
     except ImportError:
-        raise ImportError ("Neither PySide2 nor PySide6 found!")
+        raise ImportError("Neither PySide2 nor PySide6 found!")
 
 import platform
 
@@ -59,11 +77,11 @@ try:
             try:
                 from OpenGL import EGL
                 windowing_interface = "EGL"
-                print ("EGL not yet implemented, please run on X11")
+                print("EGL not yet implemented, please run on X11")
             except ImportError:
-                print ("No Windowing Interface found!")
+                print("No Windowing Interface found!")
 except ImportError:
-    raise ImportError ("PyOpenGL is required!")
+    raise ImportError("PyOpenGL is required!")
 
 try:
     import xr
@@ -71,29 +89,8 @@ try:
         from xr.platform.linux import wl_display
         LP_wl_display = ctypes.POINTER(wl_display)
 except ImportError:
-    raise ImportError ("pyopenxr is required!")
+    raise ImportError("pyopenxr is required!")
 
-from pivy.coin import SoSeparator
-from pivy.coin import SbColor
-from pivy.coin import SoSceneManager
-from pivy.coin import SbViewportRegion
-from pivy.coin import SoFrustumCamera
-from pivy.coin import SbVec3f
-from pivy.coin import SoCamera
-from pivy.coin import SoDirectionalLight
-from pivy.coin import SoEnvironment
-from pivy.coin import SoScale
-from pivy.coin import SbRotation
-from pivy.coin import SoGroup
-from pivy.coin import SoRotationXYZ
-from pivy.coin import SoTransform
-
-import FreeCADGui as Gui
-
-from math import tan, pi
-
-import controllerXR as conXR
-import preferences as pref
 
 ALL_SEVERITIES = (
     xr.DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
@@ -191,14 +188,18 @@ stringForFormat = {
     GL.GL_BGRA: "BGRA (Out of spec)",
 }
 
+
 class DockWidget(QDockWidget):
     def __init__(self, parent=None):
         QDockWidget.__init__(self, parent)
         self.setAttribute(Qt.WA_DeleteOnClose)
         mw = Gui.getMainWindow()
-        self.xr_widget = XRwidget(log_level=logging.WARNING) # set log_level=logging.DEBUG for more info
+        # set log_level=logging.DEBUG for more info
+        self.xr_widget = XRwidget(log_level=logging.WARNING)
         self.setWidget(self.xr_widget)
-        self.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable) # widget without close button
+        # widget without close button
+        self.setFeatures(QDockWidget.DockWidgetMovable |
+                         QDockWidget.DockWidgetFloatable)
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
 
     def closeEvent(self, event):
@@ -216,6 +217,7 @@ class DockWidget(QDockWidget):
     def reload_scenegraph(self):
         self.xr_widget.read_preferences()
         self.xr_widget.reload_scenegraph()
+
 
 class XRwidget(QOpenGLWidget):
     def __init__(self, parent=None, log_level=logging.WARNING):
@@ -260,7 +262,8 @@ class XRwidget(QOpenGLWidget):
         logging.basicConfig()
         self.logger = logging.getLogger("xr_viewer")
         self.logger.setLevel(log_level)
-        self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(self.debug_callback_py)
+        self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(
+            self.debug_callback_py)
 
         self.context = QOpenGLContext.currentContext()
         # Attempt to disable vsync on the desktop window or
@@ -277,15 +280,16 @@ class XRwidget(QOpenGLWidget):
         frmt.setStencilBufferSize(8)
         frmt.setAlphaBufferSize(8)
         frmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
-        frmt.setSamples(1) # multiple samples not required as MSAA is done in another buffer
+        # multiple samples not required as MSAA is done in another buffer
+        frmt.setSamples(1)
         frmt.setOption(QSurfaceFormat.DebugContext)
         ctx = QOpenGLContext()
         ctx.setFormat(frmt)
         ctx.create()
         if ctx.hasExtension(b"GL_KHR_debug"):
-            print ("GL_KHR_debug extension available")
+            print("GL_KHR_debug extension available")
         else:
-            print ("GL_KHR_debug extension NOT available")
+            print("GL_KHR_debug extension NOT available")
         self.context = ctx
 
         self.logger.debug("OpenGL Context: %s", self.context)
@@ -294,7 +298,9 @@ class XRwidget(QOpenGLWidget):
 
         self.hand_count = 2
         self.old_time = 0
-        self.primary_con = 0 # set which controller should be used for primary functionality (eg. movement)
+        # set which controller should be used for primary functionality (eg.
+        # movement)
+        self.primary_con = 0
         # 0 is the left one - defined in hand_paths
         self.secondary_con = 1
         self.frame_duration = 0
@@ -309,7 +315,7 @@ class XRwidget(QOpenGLWidget):
         self.prepare_xr_controls()
         self.setup_cameras()
         self.setup_controllers()
-        self.setup_scene() # have to be last, after cameras and controllers setup
+        self.setup_scene()  # have to be last, after cameras and controllers setup
         self.read_preferences()
         self.reload_scenegraph()
 
@@ -317,7 +323,7 @@ class XRwidget(QOpenGLWidget):
         QObject.connect(self.timer, SIGNAL("timeout()"), self.update_render)
         self.timer.start(0)
 
-        self.timer_gui = QTimer() # timer used to update non-vr things like widget title bar
+        self.timer_gui = QTimer()  # timer used to update non-vr things like widget title bar
         QObject.connect(self.timer_gui, SIGNAL("timeout()"), self.update_gui)
         self.timer_gui.start(100)
 
@@ -330,9 +336,9 @@ class XRwidget(QOpenGLWidget):
     ) -> bool:
         d = data.contents
         # TODO structure properties to return unicode strings
-        self.logger.log(py_log_level(severity), f"{d.function_name.decode()}: {d.message.decode()}")
+        self.logger.log(py_log_level(severity),
+                        f"{d.function_name.decode()}: {d.message.decode()}")
         return True
-
 
     def setup_cameras(self):
         self.near_plane = 0.01
@@ -341,42 +347,50 @@ class XRwidget(QOpenGLWidget):
         self.hmdrot = SbRotation()
         self.hmdpos = SbVec3f()
         # 0 - left eye, 1 - right eye
-        for eye_index in range (2):
-            self.camera[eye_index].viewportMapping.setValue(SoCamera.LEAVE_ALONE)
+        for eye_index in range(2):
+            self.camera[eye_index].viewportMapping.setValue(
+                SoCamera.LEAVE_ALONE)
 
     def setup_scene(self):
         # coin3d setup
-        self.vp_reg = SbViewportRegion(self.render_target_size[0], self.render_target_size[1])
-        self.m_sceneManager = SoSceneManager() # scene manager overhead over render manager seems to be pretty small
+        self.vp_reg = SbViewportRegion(
+            self.render_target_size[0],
+            self.render_target_size[1])
+        # scene manager overhead over render manager seems to be pretty small
+        self.m_sceneManager = SoSceneManager()
         # only one picked_point, assuming user will use single hand for picking
         self.coin_picked_point = None
         self.coin_picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
         self.coin_picked_point_is_new = False
         self.environ = SoEnvironment()
         # done in read_preferences
-        # self.environ.ambientIntensity.setValue(self.ambient_light_intensity) # without ambient lighting some places would be completely dark
+        # self.environ.ambientIntensity.setValue(self.ambient_light_intensity)
+        # # without ambient lighting some places would be completely dark
         self.m_sceneManager.setViewportRegion(self.vp_reg)
         self.m_sceneManager.setBackgroundColor(SbColor(0.6, 0.6, 0.8))
         self.light = SoDirectionalLight()
-        self.light.direction.setValue(-1,-1,-1)
+        self.light.direction.setValue(-1, -1, -1)
         # done in read_preferences
         # self.light.intensity.setValue(self.directional_light_intensity)
         self.light.color.setValue(1, 1, 1)
         scale = SoScale()
-        scale.scaleFactor.setValue(0.001, 0.001, 0.001) # OpenXR uses meters not millimeters
-        rot = SoRotationXYZ() # rotate scene to set Z as vertical
+        # OpenXR uses meters not millimeters
+        scale.scaleFactor.setValue(0.001, 0.001, 0.001)
+        rot = SoRotationXYZ()  # rotate scene to set Z as vertical
         rot.axis.setValue(SoRotationXYZ.X)
-        rot.angle.setValue(-pi/2)
-        self.sg = SoSeparator() # placeholder for scenegraph
-        self.world_transform = SoTransform() # store complete transformation of world, including artificial movement
+        rot.angle.setValue(-pi / 2)
+        self.sg = SoSeparator()  # placeholder for scenegraph
+        # store complete transformation of world, including artificial movement
+        self.world_transform = SoTransform()
         self.world_separator = SoSeparator()
-        self.world_separator.addChild(rot) # this rotation is only to make FC scene Z-Up
+        # this rotation is only to make FC scene Z-Up
+        self.world_separator.addChild(rot)
         self.world_separator.addChild(scale)
-        self.world_separator.addChild(self.sg) # add FreeCAD active scenegraph
-        self.cgrp = [SoGroup(), SoGroup()] # group for camera
-        self.sgrp = [SoGroup(), SoGroup()] # group for scenegraph
+        self.world_separator.addChild(self.sg)  # add FreeCAD active scenegraph
+        self.cgrp = [SoGroup(), SoGroup()]  # group for camera
+        self.sgrp = [SoGroup(), SoGroup()]  # group for scenegraph
         self.root_scene = [SoSeparator(), SoSeparator()]
-        for eye_index in range (2):
+        for eye_index in range(2):
             self.root_scene[eye_index].ref()
             self.root_scene[eye_index].addChild(self.cgrp[eye_index])
             self.cgrp[eye_index].addChild(self.camera[eye_index])
@@ -384,26 +398,40 @@ class XRwidget(QOpenGLWidget):
             self.sgrp[eye_index].addChild(self.environ)
             self.sgrp[eye_index].addChild(self.light)
             for hand in range(len(self.xr_con)):
-                self.sgrp[eye_index].addChild(self.xr_con[hand].get_controller_scenegraph())
+                self.sgrp[eye_index].addChild(
+                    self.xr_con[hand].get_controller_scenegraph())
                 if self.xr_con[hand].get_ray_scenegraph():
-                    self.sgrp[eye_index].addChild(self.xr_con[hand].get_ray_scenegraph()) # ray for controller
-            self.sgrp[eye_index].addChild(self.world_separator) # add world (scene without controllers and gui elements)
+                    self.sgrp[eye_index].addChild(
+                        self.xr_con[hand].get_ray_scenegraph())  # ray for controller
+            # add world (scene without controllers and gui elements)
+            self.sgrp[eye_index].addChild(self.world_separator)
 
     def setup_controllers(self):
-        self.xr_con = [conXR.xrController(self.primary_con, ray=False, log_level=self.log_level), conXR.xrController(self.secondary_con, ray=True, log_level=self.log_level)] # initialise scenegraphs for controllers
+        self.xr_con = [
+            conXR.xrController(
+                self.primary_con,
+                ray=False,
+                log_level=self.log_level),
+            conXR.xrController(
+                self.secondary_con,
+                ray=True,
+                log_level=self.log_level)]  # initialise scenegraphs for controllers
 
     def read_preferences(self):
         # read from user preferences
         self.user_mov_speed = pref.preferences().GetInt("LinearSpeed", 50) / 100
         self.user_rot_speed = pref.preferences().GetInt("RotationalSpeed", 50) / 100
-        self.ambient_light_intensity = pref.preferences().GetInt("AmbientLightIntesity", 40) / 100
-        self.directional_light_intensity = pref.preferences().GetInt("DirectionalLightIntesity", 60) / 100
+        self.ambient_light_intensity = pref.preferences().GetInt(
+            "AmbientLightIntesity", 40) / 100
+        self.directional_light_intensity = pref.preferences().GetInt(
+            "DirectionalLightIntesity", 60) / 100
         self.environ.ambientIntensity.setValue(self.ambient_light_intensity)
         self.light.intensity.setValue(self.directional_light_intensity)
-        self.sample_count = pref.preferences().GetInt("MSAA", 4) # MSAA number of samples, requires restart
+        self.sample_count = pref.preferences().GetInt(
+            "MSAA", 4)  # MSAA number of samples, requires restart
 
     def reload_scenegraph(self):
-        sg = Gui.ActiveDocument.ActiveView.getSceneGraph() # get active scenegraph
+        sg = Gui.ActiveDocument.ActiveView.getSceneGraph()  # get active scenegraph
         self.world_separator.replaceChild(self.sg, sg)
         self.sg = sg
 
@@ -433,7 +461,9 @@ class XRwidget(QOpenGLWidget):
             dumci.message_types = ALL_TYPES
             dumci.user_data = None  # TODO
             dumci.user_callback = self.debug_callback
-            ici.next = ctypes.cast(ctypes.pointer(dumci), ctypes.c_void_p)  # TODO: yuck
+            ici.next = ctypes.cast(
+                ctypes.pointer(dumci),
+                ctypes.c_void_p)  # TODO: yuck
         self.instance = xr.create_instance(ici)
         # TODO: pythonic wrapper
         self.pxrGetOpenGLGraphicsRequirementsKHR = ctypes.cast(
@@ -445,7 +475,7 @@ class XRwidget(QOpenGLWidget):
         )
         instance_props = xr.get_instance_properties(self.instance)
         self.logger.debug("Instance properties: %s", instance_props)
-        if platform.system() == 'Linux' and instance_props.runtime_name == b"SteamVR/OpenXR" and instance_props.runtime_version != 4294967296: # 4294967296 is linux_v1.14 1.14.16
+        if platform.system() == 'Linux' and instance_props.runtime_name == b"SteamVR/OpenXR" and instance_props.runtime_version != 4294967296:  # 4294967296 is linux_v1.14 1.14.16
             print("SteamVR/OpenXR on Linux detected, enabling workarounds")
             # Enabling workaround for https://github.com/ValveSoftware/SteamVR-for-Linux/issues/422,
             # and https://github.com/ValveSoftware/SteamVR-for-Linux/issues/479
@@ -454,9 +484,12 @@ class XRwidget(QOpenGLWidget):
 
     def prepare_xr_system(self):
         get_info = xr.SystemGetInfo(xr.FormFactor.HEAD_MOUNTED_DISPLAY)
-        self.system_id = xr.get_system(self.instance, get_info)  # TODO: not a pointer
-        view_configs = xr.enumerate_view_configurations(self.instance, self.system_id)
-        assert view_configs[0] == xr.ViewConfigurationType.PRIMARY_STEREO.value  # TODO: equality...
+        self.system_id = xr.get_system(
+            self.instance, get_info)  # TODO: not a pointer
+        view_configs = xr.enumerate_view_configurations(
+            self.instance, self.system_id)
+        # TODO: equality...
+        assert view_configs[0] == xr.ViewConfigurationType.PRIMARY_STEREO.value
         view_config_views = xr.enumerate_view_configuration_views(
             self.instance, self.system_id, xr.ViewConfigurationType.PRIMARY_STEREO)
         assert len(view_config_views) == 2
@@ -466,7 +499,8 @@ class XRwidget(QOpenGLWidget):
             view_config_views[0].recommended_image_rect_width * 2,
             view_config_views[0].recommended_image_rect_height)
         result = self.pxrGetOpenGLGraphicsRequirementsKHR(
-            self.instance, self.system_id, ctypes.byref(self.graphics_requirements))  # TODO: pythonic wrapper
+            self.instance, self.system_id, ctypes.byref(
+                self.graphics_requirements))  # TODO: pythonic wrapper
         result = xr.exception.check_result(xr.Result(result))
         if result.is_exception():
             raise result
@@ -488,11 +522,11 @@ class XRwidget(QOpenGLWidget):
         msaa_color_buf = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D_MULTISAMPLE, msaa_color_buf)
         GL.glTexImage2DMultisample(GL.GL_TEXTURE_2D_MULTISAMPLE,
-                                    self.sample_count,
-                                    GL.GL_RGBA8,
-                                    w,
-                                    h,
-                                    GL.GL_TRUE)
+                                   self.sample_count,
+                                   GL.GL_RGBA8,
+                                   w,
+                                   h,
+                                   GL.GL_TRUE)
         GL.glBindTexture(GL.GL_TEXTURE_2D_MULTISAMPLE, 0)
         GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,
                                   GL.GL_COLOR_ATTACHMENT0,
@@ -530,14 +564,27 @@ class XRwidget(QOpenGLWidget):
                         GL.GL_RGBA,
                         GL.GL_UNSIGNED_BYTE,
                         None)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
-        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(
+            GL.GL_TEXTURE_2D,
+            GL.GL_TEXTURE_MIN_FILTER,
+            GL.GL_LINEAR)
+        GL.glTexParameteri(
+            GL.GL_TEXTURE_2D,
+            GL.GL_TEXTURE_MAG_FILTER,
+            GL.GL_LINEAR)
         # only color buffer is needed
-        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER, GL.GL_COLOR_ATTACHMENT0, GL.GL_TEXTURE_2D, tex, 0)
+        GL.glFramebufferTexture2D(
+            GL.GL_FRAMEBUFFER,
+            GL.GL_COLOR_ATTACHMENT0,
+            GL.GL_TEXTURE_2D,
+            tex,
+            0)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
 
     def prepare_window(self):
-        self.resize(self.render_target_size[0] // 4, self.render_target_size[1] // 4)
+        self.resize(
+            self.render_target_size[0] // 4,
+            self.render_target_size[1] // 4)
 
     def prepare_xr_session(self):
         if windowing_interface == 'WGL':
@@ -551,23 +598,30 @@ class XRwidget(QOpenGLWidget):
             display_instance = LP_wl_display(EGL.wl_display())
             self.graphics_binding.display = display_instance
         else:
-            print ("Cannot create XR Session")
-            return;
-        pp = ctypes.cast(ctypes.pointer(self.graphics_binding), ctypes.c_void_p)
+            print("Cannot create XR Session")
+            return
+        pp = ctypes.cast(
+            ctypes.pointer(
+                self.graphics_binding),
+            ctypes.c_void_p)
         sci = xr.SessionCreateInfo(0, self.system_id, next=pp)
         self.session = xr.create_session(self.instance, sci)
         reference_spaces = xr.enumerate_reference_spaces(self.session)
         for rs in reference_spaces:
-            self.logger.debug(f"Session supports reference space {xr.ReferenceSpaceType(rs)}")
-        # TODO: default constructors for Quaternion, Vector3f, Posef, ReferenceSpaceCreateInfo
+            self.logger.debug(
+                f"Session supports reference space {xr.ReferenceSpaceType(rs)}")
+        # TODO: default constructors for Quaternion, Vector3f, Posef,
+        # ReferenceSpaceCreateInfo
         rsci = xr.ReferenceSpaceCreateInfo(
             xr.ReferenceSpaceType.STAGE,
             xr.Posef(xr.Quaternionf(0, 0, 0, 1), xr.Vector3f(0, 0, 0))
         )
-        self.projection_layer.space = xr.create_reference_space(self.session, rsci)
+        self.projection_layer.space = xr.create_reference_space(
+            self.session, rsci)
         swapchain_formats = xr.enumerate_swapchain_formats(self.session)
         for scf in swapchain_formats:
-            self.logger.debug(f"Session supports swapchain format {stringForFormat[scf]}")
+            self.logger.debug(
+                f"Session supports swapchain format {stringForFormat[scf]}")
 
     def prepare_xr_swapchain(self):
         self.swapchain_create_info.usage_flags = xr.SWAPCHAIN_USAGE_TRANSFER_DST_BIT
@@ -578,10 +632,13 @@ class XRwidget(QOpenGLWidget):
         self.swapchain_create_info.mip_count = 1
         self.swapchain_create_info.width = self.render_target_size[0]
         self.swapchain_create_info.height = self.render_target_size[1]
-        self.swapchain = xr.create_swapchain(self.session, self.swapchain_create_info)
-        self.swapchain_images = xr.enumerate_swapchain_images(self.swapchain, xr.SwapchainImageOpenGLKHR)
+        self.swapchain = xr.create_swapchain(
+            self.session, self.swapchain_create_info)
+        self.swapchain_images = xr.enumerate_swapchain_images(
+            self.swapchain, xr.SwapchainImageOpenGLKHR)
         for i, si in enumerate(self.swapchain_images):
-            self.logger.debug(f"Swapchain image {i} type = {xr.StructureType(si.type)}")
+            self.logger.debug(
+                f"Swapchain image {i} type = {xr.StructureType(si.type)}")
 
     def prepare_xr_composition_layers(self):
         self.projection_layer.view_count = 2
@@ -615,7 +672,7 @@ class XRwidget(QOpenGLWidget):
         self.pose_action = xr.create_action(
             action_set=self.action_set,
             create_info=xr.ActionCreateInfo(
-                action_type=xr.ActionType.POSE_INPUT, # XR_ACTION_TYPE_POSE_INPUT
+                action_type=xr.ActionType.POSE_INPUT,  # XR_ACTION_TYPE_POSE_INPUT
                 action_name="hand_pose",
                 localized_action_name="Hand pose",
                 count_subaction_paths=len(self.hand_paths),
@@ -626,7 +683,7 @@ class XRwidget(QOpenGLWidget):
         self.x_lever_action = xr.create_action(
             action_set=self.action_set,
             create_info=xr.ActionCreateInfo(
-                action_type=xr.ActionType.FLOAT_INPUT, # XR_ACTION_TYPE_FLOAT_INPUT
+                action_type=xr.ActionType.FLOAT_INPUT,  # XR_ACTION_TYPE_FLOAT_INPUT
                 action_name="x_lever",
                 localized_action_name="Move a lever left or right",
                 count_subaction_paths=len(self.hand_paths),
@@ -656,34 +713,70 @@ class XRwidget(QOpenGLWidget):
             ),
         )
 
-        pose_path = (xr.Path * hand_count)(
-            xr.string_to_path(self.instance, "/user/hand/left/input/aim/pose"),
-            xr.string_to_path(self.instance, "/user/hand/right/input/aim/pose"),
+        pose_path = (
+            xr.Path *
+            hand_count)(
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/left/input/aim/pose"),
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/right/input/aim/pose"),
         )
 
-        trigger_value_path = (xr.Path * hand_count)(
-            xr.string_to_path(self.instance, "/user/hand/left/input/trigger/value"),
-            xr.string_to_path(self.instance, "/user/hand/right/input/trigger/value"),
+        trigger_value_path = (
+            xr.Path *
+            hand_count)(
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/left/input/trigger/value"),
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/right/input/trigger/value"),
         )
 
-        thumbstick_x_path = (xr.Path * hand_count)(
-            xr.string_to_path(self.instance, "/user/hand/left/input/thumbstick/x"),
-            xr.string_to_path(self.instance, "/user/hand/right/input/thumbstick/x"),
+        thumbstick_x_path = (
+            xr.Path *
+            hand_count)(
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/left/input/thumbstick/x"),
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/right/input/thumbstick/x"),
         )
 
-        thumbstick_y_path = (xr.Path * hand_count)(
-            xr.string_to_path(self.instance, "/user/hand/left/input/thumbstick/y"),
-            xr.string_to_path(self.instance, "/user/hand/right/input/thumbstick/y"),
+        thumbstick_y_path = (
+            xr.Path *
+            hand_count)(
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/left/input/thumbstick/y"),
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/right/input/thumbstick/y"),
         )
 
-        trackpad_x_path = (xr.Path * hand_count)(
-            xr.string_to_path(self.instance, "/user/hand/left/input/trackpad/x"),
-            xr.string_to_path(self.instance, "/user/hand/right/input/trackpad/x"),
+        trackpad_x_path = (
+            xr.Path *
+            hand_count)(
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/left/input/trackpad/x"),
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/right/input/trackpad/x"),
         )
 
-        trackpad_y_path = (xr.Path * hand_count)(
-            xr.string_to_path(self.instance, "/user/hand/left/input/trackpad/y"),
-            xr.string_to_path(self.instance, "/user/hand/right/input/trackpad/y"),
+        trackpad_y_path = (
+            xr.Path *
+            hand_count)(
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/left/input/trackpad/y"),
+            xr.string_to_path(
+                self.instance,
+                "/user/hand/right/input/trackpad/y"),
         )
 
         # Suggest bindings for the Valve Index Controller.
@@ -706,7 +799,11 @@ class XRwidget(QOpenGLWidget):
                     "/interaction_profiles/valve/index_controller",
                 ),
                 count_suggested_bindings=len(valve_index_bindings),
-                suggested_bindings=(xr.ActionSuggestedBinding * len(valve_index_bindings))(*valve_index_bindings),
+                suggested_bindings=(
+                    xr.ActionSuggestedBinding *
+                    len(valve_index_bindings))(
+                    *
+                    valve_index_bindings),
             ),
         )
 
@@ -730,7 +827,11 @@ class XRwidget(QOpenGLWidget):
                     "/interaction_profiles/htc/vive_controller",
                 ),
                 count_suggested_bindings=len(vive_bindings),
-                suggested_bindings=(xr.ActionSuggestedBinding * len(vive_bindings))(*vive_bindings),
+                suggested_bindings=(
+                    xr.ActionSuggestedBinding *
+                    len(vive_bindings))(
+                    *
+                    vive_bindings),
             ),
         )
 
@@ -754,7 +855,11 @@ class XRwidget(QOpenGLWidget):
                     "/interaction_profiles/oculus/touch_controller",
                 ),
                 count_suggested_bindings=len(oculus_touch_bindings),
-                suggested_bindings=(xr.ActionSuggestedBinding * len(oculus_touch_bindings))(*oculus_touch_bindings),
+                suggested_bindings=(
+                    xr.ActionSuggestedBinding *
+                    len(oculus_touch_bindings))(
+                    *
+                    oculus_touch_bindings),
             ),
         )
 
@@ -778,7 +883,11 @@ class XRwidget(QOpenGLWidget):
                     "/interaction_profiles/microsoft/motion_controller",
                 ),
                 count_suggested_bindings=len(microsoft_motion_bindings),
-                suggested_bindings=(xr.ActionSuggestedBinding * len(microsoft_motion_bindings))(*microsoft_motion_bindings),
+                suggested_bindings=(
+                    xr.ActionSuggestedBinding *
+                    len(microsoft_motion_bindings))(
+                    *
+                    microsoft_motion_bindings),
             ),
         )
 
@@ -839,15 +948,18 @@ class XRwidget(QOpenGLWidget):
                     subaction_path=self.hand_paths[hand],
                 ),
             )
-            # xrSpaceLocation contains "pose" field with position and orientation
+            # xrSpaceLocation contains "pose" field with position and
+            # orientation
             space_location = xr.locate_space(
                 space=self.hand_space[hand],
                 base_space=self.projection_layer.space,
                 time=self.frame_state.predicted_display_time,
             )
-            if (space_location.location_flags & xr.SPACE_LOCATION_POSITION_VALID_BIT):
+            if (space_location.location_flags &
+                    xr.SPACE_LOCATION_POSITION_VALID_BIT):
                 self.xr_con[hand].show_controller()
-                self.xr_con[hand].update_pose(space_location, self.world_transform) # definition in controllerXR.py
+                self.xr_con[hand].update_pose(
+                    space_location, self.world_transform)  # definition in controllerXR.py
                 # Update actions
                 x_lever_value = xr.get_action_state_float(
                     self.session,
@@ -874,17 +986,28 @@ class XRwidget(QOpenGLWidget):
                 self.xr_con[hand].update_grab(grab_value)
                 # teleport implementation
                 if self.xr_con[hand].get_ray_scenegraph():
-                    if (self.xr_con[hand].get_buttons_states().grab >= 0.5): # do traversal only if trigger pressed, because it is expensive
-                    # traverse only the world, avoid picking controller gizmos or other non-world objects
+                    if (self.xr_con[hand].get_buttons_states(
+                    ).grab >= 0.5):  # do traversal only if trigger pressed, because it is expensive
+                        # traverse only the world, avoid picking controller
+                        # gizmos or other non-world objects
                         self.xr_con[hand].show_ray()
-                        self.coin_picked_point, self.coin_picked_p_coords =  self.xr_con[hand].find_picked_coin_object(self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
+                        self.coin_picked_point, self.coin_picked_p_coords = self.xr_con[hand].find_picked_coin_object(
+                            self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
                         if (self.coin_picked_point):
                             self.coin_picked_point_is_new = True
-                    if ((self.xr_con[hand].get_buttons_states().grab < 0.5) and (self.coin_picked_point_is_new)):
+                    if ((self.xr_con[hand].get_buttons_states().grab < 0.5) and (
+                            self.coin_picked_point_is_new)):
                         self.coin_picked_point_is_new = False
                         self.xr_con[hand].hide_ray()
                         teleport_transform = SoTransform()
-                        teleport_transform.translation.setValue(SbVec3f(self.coin_picked_p_coords) - self.camera[0].position.getValue() + SbVec3f(0.0, self.hmdpos[1], 0.0))
+                        teleport_transform.translation.setValue(
+                            SbVec3f(
+                                self.coin_picked_p_coords) -
+                            self.camera[0].position.getValue() +
+                            SbVec3f(
+                                0.0,
+                                self.hmdpos[1],
+                                0.0))
                         self.world_transform.combineRight(teleport_transform)
             else:
                 self.xr_con[hand].hide_controller()
@@ -899,7 +1022,6 @@ class XRwidget(QOpenGLWidget):
             except xr.EventUnavailable:
                 break
 
-
     def on_session_state_changed(self, session_state_changed_event):
         # TODO: it would be nice to avoid this horrible cast...
         event = ctypes.cast(
@@ -909,7 +1031,8 @@ class XRwidget(QOpenGLWidget):
         self.session_state = xr.SessionState(event.state)
         if self.session_state == xr.SessionState.READY:
             if not self.quit:
-                sbi = xr.SessionBeginInfo(xr.ViewConfigurationType.PRIMARY_STEREO)
+                sbi = xr.SessionBeginInfo(
+                    xr.ViewConfigurationType.PRIMARY_STEREO)
                 xr.begin_session(self.session, sbi)
         elif self.session_state == xr.SessionState.STOPPING:
             xr.end_session(self.session)
@@ -947,21 +1070,25 @@ class XRwidget(QOpenGLWidget):
         xr.end_frame(self.session, frame_end_info)
 
     def update_xr_movement(self):
-        curr_time = self.frame_state.predicted_display_time / 1e9 # XrTime is measured in nanoseconds (int64)
+        curr_time = self.frame_state.predicted_display_time / \
+            1e9  # XrTime is measured in nanoseconds (int64)
         self.frame_duration = curr_time - self.old_time
         self.old_time = curr_time
-        final_mov_speed = self.frame_duration * self.user_mov_speed # translation (movement) speed
-        final_rot_speed =  self.frame_duration * self.user_rot_speed
-        transform_modifier = SoTransform() # transformation with movement at this particular moment
-        #*********************************************************************
+        final_mov_speed = self.frame_duration * \
+            self.user_mov_speed  # translation (movement) speed
+        final_rot_speed = self.frame_duration * self.user_rot_speed
+        # transformation with movement at this particular moment
+        transform_modifier = SoTransform()
+        # *********************************************************************
         # Arch-like movement
         # analog stick/trackpad of the first controller
         # moves viewer up/down and left/right
         # analog stick/trackpad of the second controller
         # rotates viewer around center of the HMD and moves forward/backward
         # adjust self.primary_con and self.secondary_con to your prefereces
-        #*********************************************************************
-        # qx, qz, qz, qw = xr_con[self.primary_con].get_local_q() # retrieves rotation of the controller
+        # *********************************************************************
+        # qx, qz, qz, qw = xr_con[self.primary_con].get_local_q() # retrieves
+        # rotation of the controller
         qx = self.hmdrot.getValue()[0]
         qy = self.hmdrot.getValue()[1]
         qz = self.hmdrot.getValue()[2]
@@ -975,14 +1102,16 @@ class XRwidget(QOpenGLWidget):
         xaxis = self.xr_con[self.primary_con].get_buttons_states().lever_x
         yaxis = self.xr_con[self.primary_con].get_buttons_states().lever_y
         step = SbVec3f(0, yaxis * final_mov_speed, 0)
-        step = step + SbVec3f(xaxis * z2 * final_mov_speed, 0, -xaxis * z0 * final_mov_speed)
+        step = step + SbVec3f(xaxis * z2 * final_mov_speed,
+                              0, -xaxis * z0 * final_mov_speed)
         transform_modifier.center.setValue(self.hmdpos)
         transform_modifier.translation.setValue(step)
         self.world_transform.combineLeft(transform_modifier)
         # secondary controller
         xaxis = self.xr_con[self.secondary_con].get_buttons_states().lever_x
         yaxis = self.xr_con[self.secondary_con].get_buttons_states().lever_y
-        step = SbVec3f(-yaxis * z0 * final_mov_speed, 0, -yaxis * z2 * final_mov_speed)
+        step = SbVec3f(-yaxis * z0 * final_mov_speed,
+                       0, -yaxis * z2 * final_mov_speed)
         transform_modifier.center.setValue(self.hmdpos)
         transform_modifier.translation.setValue(step)
         world_z_rot = SbRotation(SbVec3f(0, 1, 0), -xaxis)
@@ -1000,23 +1129,37 @@ class XRwidget(QOpenGLWidget):
         )
         vs, self.eye_view_states = xr.locate_views(self.session, vi)
         for eye_index, view_state in enumerate(self.eye_view_states):
-            self.hmdrot = SbRotation(view_state.pose.orientation.x, view_state.pose.orientation.y, view_state.pose.orientation.z, view_state.pose.orientation.w)
-            self.hmdpos = SbVec3f(view_state.pose.position.x, view_state.pose.position.y, view_state.pose.position.z) #get global position and orientation for both cameras
+            self.hmdrot = SbRotation(
+                view_state.pose.orientation.x,
+                view_state.pose.orientation.y,
+                view_state.pose.orientation.z,
+                view_state.pose.orientation.w)
+            self.hmdpos = SbVec3f(
+                view_state.pose.position.x,
+                view_state.pose.position.y,
+                view_state.pose.position.z)  # get global position and orientation for both cameras
             cam_transform = SoTransform()
-            cam_transform.translation.setValue(self.world_transform.translation.getValue()) #transfer values only
-            cam_transform.rotation.setValue(self.world_transform.rotation.getValue())
-            cam_transform.center.setValue(self.world_transform.center.getValue())
+            cam_transform.translation.setValue(
+                self.world_transform.translation.getValue())  # transfer values only
+            cam_transform.rotation.setValue(
+                self.world_transform.rotation.getValue())
+            cam_transform.center.setValue(
+                self.world_transform.center.getValue())
             hmd_transform = SoTransform()
             hmd_transform.translation.setValue(self.hmdpos)
             hmd_transform.rotation.setValue(self.hmdrot)
-            cam_transform.combineLeft(hmd_transform) # combine real hmd and arificial (stick-driven) camera movement
+            # combine real hmd and arificial (stick-driven) camera movement
+            cam_transform.combineLeft(hmd_transform)
             pfLeft = tan(view_state.fov.angle_left)
             pfRight = tan(view_state.fov.angle_right)
             pfTop = tan(view_state.fov.angle_up)
             pfBottom = tan(view_state.fov.angle_down)
-            self.camera[eye_index].orientation.setValue(cam_transform.rotation.getValue())
-            self.camera[eye_index].position.setValue(cam_transform.translation.getValue())
-            self.camera[eye_index].aspectRatio.setValue((pfTop - pfBottom)/(pfRight - pfLeft))
+            self.camera[eye_index].orientation.setValue(
+                cam_transform.rotation.getValue())
+            self.camera[eye_index].position.setValue(
+                cam_transform.translation.getValue())
+            self.camera[eye_index].aspectRatio.setValue(
+                (pfTop - pfBottom) / (pfRight - pfLeft))
             self.camera[eye_index].nearDistance.setValue(near_plane)
             self.camera[eye_index].farDistance.setValue(far_plane)
             self.camera[eye_index].left.setValue(near_plane * pfLeft)
@@ -1026,7 +1169,16 @@ class XRwidget(QOpenGLWidget):
 
     def update_gui(self):
         if self.mirror_window:
-            self.parentWidget().setWindowTitle("Render time: " + "{:.2f}".format(self.render_duration / 1e6) + " ms Predicted frame time: " + "{:.2f}".format(self.frame_duration * 1000) + " ms")
+            self.parentWidget().setWindowTitle(
+                "Render time: " +
+                "{:.2f}".format(
+                    self.render_duration /
+                    1e6) +
+                " ms Predicted frame time: " +
+                "{:.2f}".format(
+                    self.frame_duration *
+                    1000) +
+                " ms")
 
     def update_render(self):
         if self.mirror_window:
@@ -1037,7 +1189,7 @@ class XRwidget(QOpenGLWidget):
             self.doneCurrent()
 
     def paintGL(self):
-        if self.fbo_id != None: # make sure that initializeGL happened
+        if self.fbo_id is not None:  # make sure that initializeGL happened
             self.poll_xr_events()
             if self.quit:
                 return
@@ -1048,9 +1200,10 @@ class XRwidget(QOpenGLWidget):
                     self.update_xr_views()
                     ren_timer = QElapsedTimer()
                     ren_timer.start()
-                    self.oldfb = self.defaultFramebufferObject() # widget's (not context) DFO
+                    self.oldfb = self.defaultFramebufferObject()  # widget's (not context) DFO
                     ai = xr.SwapchainImageAcquireInfo(None)
-                    swapchain_index = xr.acquire_swapchain_image(self.swapchain, ai)
+                    swapchain_index = xr.acquire_swapchain_image(
+                        self.swapchain, ai)
                     wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
                     xr.wait_swapchain_image(self.swapchain, wi)
                     GL.glUseProgram(0)
@@ -1092,7 +1245,8 @@ class XRwidget(QOpenGLWidget):
                         0,
                     )
 
-                    GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.fbo_msaa_id)
+                    GL.glBindFramebuffer(
+                        GL.GL_READ_FRAMEBUFFER, self.fbo_msaa_id)
                     GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.fbo_id)
                     GL.glBlitFramebuffer(
                         0, 0, w, h, 0, 0,
@@ -1106,8 +1260,10 @@ class XRwidget(QOpenGLWidget):
                     xr.release_swapchain_image(self.swapchain, ri)
                     if self.mirror_window:
                         # fast blit from the fbo to the window surface
-                        GL.glBindFramebuffer(GL.GL_READ_FRAMEBUFFER, self.fbo_id)
-                        GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.oldfb)
+                        GL.glBindFramebuffer(
+                            GL.GL_READ_FRAMEBUFFER, self.fbo_id)
+                        GL.glBindFramebuffer(
+                            GL.GL_DRAW_FRAMEBUFFER, self.oldfb)
                         GL.glBlitFramebuffer(
                             0, 0, w, h, 0, 0,
                             self.size().width(), self.size().height(),
@@ -1153,7 +1309,7 @@ class XRwidget(QOpenGLWidget):
             self.root_scene[i].unref()
         self.doneCurrent()
         self.deleteLater()
-        print ("XR terminated")
+        print("XR terminated")
 
     def disable_mirror(self):
         self.mirror_window = False
@@ -1167,34 +1323,37 @@ class XRwidget(QOpenGLWidget):
 
 xr_dock_w = None
 
+
 def open_xr_viewer():
-    if Gui.ActiveDocument == None:
-        print ("No active view!")
+    if Gui.ActiveDocument is None:
+        print("No active view!")
         return
     global xr_dock_w
-    if shiboken.isValid(xr_dock_w) and xr_dock_w != None:
-        print ("XR already started, please close it before reopening")
+    if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
+        print("XR already started, please close it before reopening")
     else:
         xr_dock_w = DockWidget()
 
+
 def close_xr_viewer():
     global xr_dock_w
-    if shiboken.isValid(xr_dock_w) and xr_dock_w != None:
+    if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
         xr_dock_w.close()
 
 
 def open_xr_mirror():
     global xr_dock_w
-    if shiboken.isValid(xr_dock_w) and xr_dock_w != None:
+    if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
         xr_dock_w.unhide_mirror()
+
 
 def close_xr_mirror():
     global xr_dock_w
-    if shiboken.isValid(xr_dock_w) and xr_dock_w != None:
+    if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
         xr_dock_w.hide_mirror()
+
 
 def reload_scenegraph():
     global xr_dock_w
-    if shiboken.isValid(xr_dock_w) and xr_dock_w != None:
+    if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
         xr_dock_w.reload_scenegraph()
-

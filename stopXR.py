@@ -27,15 +27,16 @@ from PySide.QtCore import QT_TRANSLATE_NOOP
 
 import commonXR as cxr
 
+
 class XR_Stop():
     """A command closing the XR viewer"""
 
     def GetResources(self):
         return {
             "Pixmap": "Glasses_disabled.svg",
-            "Accel"   : "X,C", # a default shortcut (optional)
+            "Accel": "X,C",  # a default shortcut (optional)
             "MenuText": QT_TRANSLATE_NOOP("XR_Stop", "Close XR viewer"),
-            "ToolTip" : QT_TRANSLATE_NOOP("XR_Stop", "Stops rendering in VR HMD")}
+            "ToolTip": QT_TRANSLATE_NOOP("XR_Stop", "Stops rendering in VR HMD")}
 
     def Activated(self):
         cxr.close_xr_viewer()
@@ -44,6 +45,7 @@ class XR_Stop():
     def IsActive(self):
         """Here you can define if the command must be active or not (greyed) if certain conditions
         are met or not. This function is optional."""
-        return True # True or False
+        return True  # True or False
+
 
 Gui.addCommand("stopXR", XR_Stop())
