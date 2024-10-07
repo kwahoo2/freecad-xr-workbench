@@ -23,6 +23,7 @@
 import os
 
 import FreeCADGui as Gui
+from PySide.QtCore import QT_TRANSLATE_NOOP
 
 import commonXR as cxr
 
@@ -33,8 +34,8 @@ class XR_Mirror_Disable():
         return {
             "Pixmap": "Display_disabled.svg",
             "Accel"   : "M,D", # a default shortcut (optional)
-            "MenuText": "Disable mirror",
-            "ToolTip" : "Disables the VR view mirroring"}
+            "MenuText": QT_TRANSLATE_NOOP("XR_MirrorDisable", "Disable mirror"),
+            "ToolTip" : QT_TRANSLATE_NOOP("XR_MirrorDisable", "Disables the VR view mirroring")}
 
     def Activated(self):
         cxr.close_xr_mirror()

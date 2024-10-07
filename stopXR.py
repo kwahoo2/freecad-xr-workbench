@@ -23,6 +23,7 @@
 import os
 
 import FreeCADGui as Gui
+from PySide.QtCore import QT_TRANSLATE_NOOP
 
 import commonXR as cxr
 
@@ -33,8 +34,8 @@ class XR_Stop():
         return {
             "Pixmap": "Glasses_disabled.svg",
             "Accel"   : "X,C", # a default shortcut (optional)
-            "MenuText": "Close XR viewer",
-            "ToolTip" : "Stops rendering in VR HMD"}
+            "MenuText": QT_TRANSLATE_NOOP("XR_Stop", "Close XR viewer"),
+            "ToolTip" : QT_TRANSLATE_NOOP("XR_Stop", "Stops rendering in VR HMD")}
 
     def Activated(self):
         cxr.close_xr_viewer()

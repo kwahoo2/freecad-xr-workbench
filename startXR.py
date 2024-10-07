@@ -25,6 +25,7 @@ import os
 import FreeCADGui as Gui
 
 import commonXR as cxr
+from PySide.QtCore import QT_TRANSLATE_NOOP
 
 class XR_Viewer():
     """A command opening the XR viewer"""
@@ -35,8 +36,8 @@ class XR_Viewer():
         return {
             "Pixmap": "Stepien_Glasses.svg",
             "Accel"   : "X,R", # a default shortcut (optional)
-            "MenuText": "Open XR viewer",
-            "ToolTip" : "Starts rendering in VR HMD"}
+            "MenuText": QT_TRANSLATE_NOOP("XR_Start", "Open XR viewer"),
+            "ToolTip" : QT_TRANSLATE_NOOP("XR_Start", "Starts rendering in VR HMD")}
 
     def Activated(self):
         cxr.open_xr_viewer()

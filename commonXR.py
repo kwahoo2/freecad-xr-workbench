@@ -198,6 +198,7 @@ class DockWidget(QDockWidget):
         mw = Gui.getMainWindow()
         self.xr_widget = XRwidget(log_level=logging.WARNING) # set log_level=logging.DEBUG for more info
         self.setWidget(self.xr_widget)
+        self.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable) # widget without close button
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
 
     def closeEvent(self, event):
@@ -211,6 +212,10 @@ class DockWidget(QDockWidget):
     def unhide_mirror(self):
         self.xr_widget.enable_mirror()
         self.show()
+
+    def reload_scenegraph(self):
+        self.xr_widget.read_preferences()
+        self.xr_widget.reload_scenegraph()
 
 class XRwidget(QOpenGLWidget):
     def __init__(self, parent=None, log_level=logging.WARNING):
@@ -272,7 +277,7 @@ class XRwidget(QOpenGLWidget):
         frmt.setStencilBufferSize(8)
         frmt.setAlphaBufferSize(8)
         frmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
-        frmt.setSamples(1) # multiple samples not requires as MSAA done in another buffer
+        frmt.setSamples(1) # multiple samples not required as MSAA is done in another buffer
         frmt.setOption(QSurfaceFormat.DebugContext)
         ctx = QOpenGLContext()
         ctx.setFormat(frmt)
@@ -290,16 +295,10 @@ class XRwidget(QOpenGLWidget):
         self.hand_count = 2
         self.old_time = 0
         self.primary_con = 0 # set which controller should be used for primary functionality (eg. movement)
-        # 0 is the left one most systems
+        # 0 is the left one - defined in hand_paths
         self.secondary_con = 1
         self.frame_duration = 0
         self.render_duration = 0
-        # read from user preferences
-        self.user_mov_speed = pref.preferences().GetInt("LinearSpeed", 50) / 100
-        self.user_rot_speed = pref.preferences().GetInt("RotationalSpeed", 50) / 100
-        self.ambient_light_intensity = pref.preferences().GetInt("AmbientLightIntesity", 40) / 100
-        self.directional_light_intensity = pref.preferences().GetInt("DirectionalLightIntesity", 60) / 100
-        self.sample_count = pref.preferences().GetInt("MSAA", 4) # MSAA number of samples
 
         self.prepare_xr_instance()
         self.prepare_xr_system()
@@ -311,6 +310,8 @@ class XRwidget(QOpenGLWidget):
         self.setup_cameras()
         self.setup_controllers()
         self.setup_scene() # have to be last, after cameras and controllers setup
+        self.read_preferences()
+        self.reload_scenegraph()
 
         self.timer = QTimer()
         QObject.connect(self.timer, SIGNAL("timeout()"), self.update_render)
@@ -351,25 +352,27 @@ class XRwidget(QOpenGLWidget):
         self.coin_picked_point = None
         self.coin_picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
         self.coin_picked_point_is_new = False
-        environ = SoEnvironment()
-        environ.ambientIntensity.setValue(self.ambient_light_intensity) # without ambient lighting some places would be completely dark
+        self.environ = SoEnvironment()
+        # done in read_preferences
+        # self.environ.ambientIntensity.setValue(self.ambient_light_intensity) # without ambient lighting some places would be completely dark
         self.m_sceneManager.setViewportRegion(self.vp_reg)
         self.m_sceneManager.setBackgroundColor(SbColor(0.6, 0.6, 0.8))
-        light = SoDirectionalLight()
-        light.direction.setValue(-1,-1,-1)
-        light.intensity.setValue(self.directional_light_intensity)
-        light.color.setValue(1, 0.8, 0.8)
+        self.light = SoDirectionalLight()
+        self.light.direction.setValue(-1,-1,-1)
+        # done in read_preferences
+        # self.light.intensity.setValue(self.directional_light_intensity)
+        self.light.color.setValue(1, 1, 1)
         scale = SoScale()
         scale.scaleFactor.setValue(0.001, 0.001, 0.001) # OpenXR uses meters not millimeters
-        sg = Gui.ActiveDocument.ActiveView.getSceneGraph() # get active scenegraph
         rot = SoRotationXYZ() # rotate scene to set Z as vertical
         rot.axis.setValue(SoRotationXYZ.X)
         rot.angle.setValue(-pi/2)
+        self.sg = SoSeparator() # placeholder for scenegraph
         self.world_transform = SoTransform() # store complete transformation of world, including artificial movement
         self.world_separator = SoSeparator()
         self.world_separator.addChild(rot) # this rotation is only to make FC scene Z-Up
         self.world_separator.addChild(scale)
-        self.world_separator.addChild(sg) # add FreeCAD active scenegraph
+        self.world_separator.addChild(self.sg) # add FreeCAD active scenegraph
         self.cgrp = [SoGroup(), SoGroup()] # group for camera
         self.sgrp = [SoGroup(), SoGroup()] # group for scenegraph
         self.root_scene = [SoSeparator(), SoSeparator()]
@@ -378,8 +381,8 @@ class XRwidget(QOpenGLWidget):
             self.root_scene[eye_index].addChild(self.cgrp[eye_index])
             self.cgrp[eye_index].addChild(self.camera[eye_index])
             self.root_scene[eye_index].addChild(self.sgrp[eye_index])
-            self.sgrp[eye_index].addChild(environ)
-            self.sgrp[eye_index].addChild(light)
+            self.sgrp[eye_index].addChild(self.environ)
+            self.sgrp[eye_index].addChild(self.light)
             for hand in range(len(self.xr_con)):
                 self.sgrp[eye_index].addChild(self.xr_con[hand].get_controller_scenegraph())
                 if self.xr_con[hand].get_ray_scenegraph():
@@ -388,6 +391,21 @@ class XRwidget(QOpenGLWidget):
 
     def setup_controllers(self):
         self.xr_con = [conXR.xrController(self.primary_con, ray=False, log_level=self.log_level), conXR.xrController(self.secondary_con, ray=True, log_level=self.log_level)] # initialise scenegraphs for controllers
+
+    def read_preferences(self):
+        # read from user preferences
+        self.user_mov_speed = pref.preferences().GetInt("LinearSpeed", 50) / 100
+        self.user_rot_speed = pref.preferences().GetInt("RotationalSpeed", 50) / 100
+        self.ambient_light_intensity = pref.preferences().GetInt("AmbientLightIntesity", 40) / 100
+        self.directional_light_intensity = pref.preferences().GetInt("DirectionalLightIntesity", 60) / 100
+        self.environ.ambientIntensity.setValue(self.ambient_light_intensity)
+        self.light.intensity.setValue(self.directional_light_intensity)
+        self.sample_count = pref.preferences().GetInt("MSAA", 4) # MSAA number of samples, requires restart
+
+    def reload_scenegraph(self):
+        sg = Gui.ActiveDocument.ActiveView.getSceneGraph() # get active scenegraph
+        self.world_separator.replaceChild(self.sg, sg)
+        self.sg = sg
 
     def prepare_xr_instance(self):
         discovered_extensions = xr.enumerate_instance_extension_properties()
@@ -1174,4 +1192,9 @@ def close_xr_mirror():
     global xr_dock_w
     if shiboken.isValid(xr_dock_w) and xr_dock_w != None:
         xr_dock_w.hide_mirror()
+
+def reload_scenegraph():
+    global xr_dock_w
+    if shiboken.isValid(xr_dock_w) and xr_dock_w != None:
+        xr_dock_w.reload_scenegraph()
 
