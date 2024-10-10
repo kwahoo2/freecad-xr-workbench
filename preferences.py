@@ -44,6 +44,11 @@ class PreferencesPage:
         pref.SetInt("AmbientLightIntesity", self.form.ambiLiSlider.value())
         pref.SetInt("DirectionalLightIntesity", self.form.dirLiSlider.value())
         pref.SetInt("MSAA", self.form.msaaSpinBox.value())
+        if self.form.movArchRadioButton.isChecked():
+            pref.SetString("Movement", "ARCH")
+        elif self.form.movFreeRadioButton.isChecked():
+            pref.SetString("Movement", "FREE")
+
 
     def loadSettings(self):
         pref = preferences()
@@ -54,3 +59,9 @@ class PreferencesPage:
         self.form.dirLiSlider.setValue(
             pref.GetInt("DirectionalLightIntesity", 80))
         self.form.msaaSpinBox.setValue(pref.GetInt("MSAA", 4))
+        mov_str = pref.GetString("Movement", "ARCH")
+        if mov_str == "ARCH":
+            self.form.movArchRadioButton.setChecked(True)
+        elif mov_str == "FREE":
+            self.form.movFreeRadioButton.setChecked(True)
+

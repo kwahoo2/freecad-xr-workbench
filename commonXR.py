@@ -25,6 +25,7 @@
 
 import preferences as pref
 import controllerXR as conXR
+import movementXR as movXR
 from math import tan, pi
 import FreeCADGui as Gui
 from pivy.coin import SoTransform
@@ -407,6 +408,7 @@ class XRwidget(QOpenGLWidget):
             self.sgrp[eye_index].addChild(self.world_separator)
 
     def setup_controllers(self):
+        # initialise scenegraphs for controllers
         self.xr_con = [
             conXR.xrController(
                 self.primary_con,
@@ -415,7 +417,10 @@ class XRwidget(QOpenGLWidget):
             conXR.xrController(
                 self.secondary_con,
                 ray=True,
-                log_level=self.log_level)]  # initialise scenegraphs for controllers
+                log_level=self.log_level)]
+        # create movement object for world transformation based on controller
+        # input
+        self.mov_xr = movXR.xrMovement()
 
     def read_preferences(self):
         # read from user preferences
@@ -429,6 +434,7 @@ class XRwidget(QOpenGLWidget):
         self.light.intensity.setValue(self.directional_light_intensity)
         self.sample_count = pref.preferences().GetInt(
             "MSAA", 4)  # MSAA number of samples, requires restart
+        self.mov_xr.set_movement_type(pref.preferences().GetString("Movement", "ARCH"))
 
     def reload_scenegraph(self):
         sg = Gui.ActiveDocument.ActiveView.getSceneGraph()  # get active scenegraph
@@ -1078,46 +1084,12 @@ class XRwidget(QOpenGLWidget):
             self.user_mov_speed  # translation (movement) speed
         final_rot_speed = self.frame_duration * self.user_rot_speed
         # transformation with movement at this particular moment
-        transform_modifier = SoTransform()
-        # *********************************************************************
-        # Arch-like movement
-        # analog stick/trackpad of the first controller
-        # moves viewer up/down and left/right
-        # analog stick/trackpad of the second controller
-        # rotates viewer around center of the HMD and moves forward/backward
-        # adjust self.primary_con and self.secondary_con to your prefereces
-        # *********************************************************************
-        # qx, qz, qz, qw = xr_con[self.primary_con].get_local_q() # retrieves
-        # rotation of the controller
-        qx = self.hmdrot.getValue()[0]
-        qy = self.hmdrot.getValue()[1]
-        qz = self.hmdrot.getValue()[2]
-        qw = self.hmdrot.getValue()[3]
-        # https://www.euclideanspace.com/maths/geometry/rotations/conversions/quaternionToMatrix/index.htm
-        mat02 = 2 * qx * qz + 2 * qy * qw
-        mat22 = 1 - 2 * qx * qx - 2 * qy * qy
-        z0 = mat02
-        z2 = mat22
-        # primary controller
-        xaxis = self.xr_con[self.primary_con].get_buttons_states().lever_x
-        yaxis = self.xr_con[self.primary_con].get_buttons_states().lever_y
-        step = SbVec3f(0, yaxis * final_mov_speed, 0)
-        step = step + SbVec3f(xaxis * z2 * final_mov_speed,
-                              0, -xaxis * z0 * final_mov_speed)
-        transform_modifier.center.setValue(self.hmdpos)
-        transform_modifier.translation.setValue(step)
-        self.world_transform.combineLeft(transform_modifier)
-        # secondary controller
-        xaxis = self.xr_con[self.secondary_con].get_buttons_states().lever_x
-        yaxis = self.xr_con[self.secondary_con].get_buttons_states().lever_y
-        step = SbVec3f(-yaxis * z0 * final_mov_speed,
-                       0, -yaxis * z2 * final_mov_speed)
-        transform_modifier.center.setValue(self.hmdpos)
-        transform_modifier.translation.setValue(step)
-        world_z_rot = SbRotation(SbVec3f(0, 1, 0), -xaxis)
-        world_z_rot.scaleAngle(final_rot_speed)
-        transform_modifier.rotation.setValue(world_z_rot)
-        self.world_transform.combineLeft(transform_modifier)
+        # combine it with existing world transformation
+        self.world_transform.combineLeft(self.mov_xr.calculate_transformation(
+            self.hmdpos, self.hmdrot,
+            self.xr_con[self.primary_con],
+            self.xr_con[self.secondary_con],
+            final_mov_speed, final_rot_speed))
 
     def update_xr_views(self):
         near_plane = self.near_plane

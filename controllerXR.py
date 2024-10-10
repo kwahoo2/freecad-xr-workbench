@@ -221,12 +221,8 @@ class xrController:
             self.iden,
             self.buttons_state.grab)
 
-    def get_local_q(self):
-        qx = self.con_localtransform.rotation.getValue().getValue()[0]
-        qy = self.con_localtransform.rotation.getValue().getValue()[1]
-        qz = self.con_localtransform.rotation.getValue().getValue()[2]
-        qw = self.con_localtransform.rotation.getValue().getValue()[3]
-        return qx, qy, qz, qw
+    def get_local_transf(self):
+        return self.con_localtransform
 
     def get_buttons_states(self):
         return self.buttons_state
