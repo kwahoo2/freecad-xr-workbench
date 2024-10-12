@@ -22,7 +22,7 @@ an example:
 
 `XR_RUNTIME_JSON=/usr/local/share/openxr/1/openxr_monado.json ./FreeCAD_1.0.0-conda-Linux-x86_64-py311.AppImage`
 
-Note: the OpenXR have to support [XR_KHR_opengl_enable](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_opengl_enable.html) extension. Known runtimes that support this extension include SteamVR and Monado.
+Note: the OpenXR has to support [XR_KHR_opengl_enable](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_opengl_enable.html) extension. Known runtimes that support this extension include SteamVR and Monado.
 
 #### Python libraries
 
@@ -48,6 +48,20 @@ Copy the `freecad-xr-workbench` directory to FreeCAD's `Mod` directory:
 See also: [FreeCAD Wiki: Installing more workbenches](https://wiki.freecad.org/Installing_more_workbenches)
 
 A new `XR` workbench will appear.
+
+## Movement in the 3D space
+
+The XR workbench can use two motion controllers to introduce artificial movement on top of the room-scale (real world) movement. There are two modes (select one in Edit->Preferences->XRWorkbench):
+
+### Arch-like movement:
+* analog stick/trackpad of the primary (default left) controller moves viewer up/down and left/right,
+* analog stick/trackpad of the secondary (default right) controller rotates viewer around center of the HMD and moves forward/backward.
+
+### Free movement:
+* analog stick/trackpad of the primary (default left) controller moves viewer forward or backward along the controller axis,
+* analog stick/trackpad of the secondary (default right) controller rotates viewer around center of the controller.
+
+Additionaly, a teleport movement is available: press secondary (default right) controller trigger, a ray become visible. Release the trigger, you will be teleported to place where the ray was interesecting (indicated by a small sphere) an object.
 
 ## Known issues:
 
