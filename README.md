@@ -4,6 +4,10 @@ A Virtual Reality (OpenXR) workbench written in Python. Aims for easier installa
 
 [Forum thread](https://forum.freecad.org/viewtopic.php?t=39526)
 
+![FreeCAD-XR][fcxr]
+
+[fcxr]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/main/.github/images/fcxr-screen.png "View of active workbench"
+
 ## Prerequisites
 
 ### Software Dependencies
@@ -14,9 +18,11 @@ A Virtual Reality (OpenXR) workbench written in Python. Aims for easier installa
 
 `XR_RUNTIME_JSON=json_file_placement FreeCAD_executable`
 
-example:
+an example:
 
 `XR_RUNTIME_JSON=/usr/local/share/openxr/1/openxr_monado.json ./FreeCAD_1.0.0-conda-Linux-x86_64-py311.AppImage`
+
+Note: the OpenXR have to support [XR_KHR_opengl_enable](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_opengl_enable.html) extension. Known runtimes that support this extension include SteamVR and Monado.
 
 #### Python libraries
 
