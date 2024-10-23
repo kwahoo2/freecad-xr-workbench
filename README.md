@@ -61,7 +61,7 @@ The XR workbench can use two motion controllers to introduce artificial movement
 * analog stick/trackpad of the primary (default left) controller moves viewer forward or backward along the controller axis,
 * analog stick/trackpad of the secondary (default right) controller rotates viewer around center of the controller.
 
-Additionaly, a teleport movement is available: press secondary (default right) controller trigger, a ray become visible. Release the trigger, you will be teleported to place where the ray was interesecting (indicated by a small sphere) an object.
+Additionally, a teleport movement is available: press secondary (default right) controller trigger, a ray become visible. Release the trigger, you will be teleported to place where the ray was intersecting (indicated by a small sphere) an object.
 
 ## Known issues:
 
