@@ -11,7 +11,7 @@
 
   <maintainer email="adrian.v.przekwas@gmail.com">Adrian Przekwas</maintainer>
 
-  <license file="LICENSE">LGPL-3.0</license>
+  <license file="LICENSE">LGPL-3.0-or-later</license>
 
   <pythonmin>3.11.0</pythonmin>
 
