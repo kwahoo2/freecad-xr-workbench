@@ -56,6 +56,7 @@ class xrController:
         self.controller_node.whichChild = SO_SWITCH_ALL
         self.iden = iden
         self.buttons_state = ButtonsState()
+        self.old_buttons_state = ButtonsState()
         self.con_localtransform = SoTransform()
         self.con_transform = SoTransform()
         if ray:
@@ -64,6 +65,7 @@ class xrController:
             self.update_ray_axis()
         else:
             self.ray_node = None
+        self.picked_tail = None
         self.add_controller_shape()
 
     def add_controller_shape(self):
@@ -108,10 +110,12 @@ class xrController:
         ray_sep.addChild(ray_line)
         self.sph_trans = SoTranslation()
         self.sph_trans.translation.setValue(0, 0, 0)
-        ray_sep.addChild(self.sph_trans)
+        self.sph_node = SoSwitch()
+        self.sph_node.addChild(self.sph_trans)
         ray_sph = SoSphere()
         ray_sph.radius.setValue(0.02)
-        ray_sep.addChild(ray_sph)
+        self.sph_node.addChild(ray_sph)
+        ray_sep.addChild(self.sph_node)
         self.ray_node.addChild(ray_sep)
 
     def get_controller_scenegraph(self):
@@ -194,18 +198,25 @@ class xrController:
         picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
         picked_point = con_pick_action.getPickedPoint()
 
-        is_point_picked = False
-
         if (picked_point):
             picked_p_coords = picked_point.getPoint()
+            self.sph_node.whichChild = SO_SWITCH_ALL
             self.sph_trans.translation.setValue(picked_p_coords)
             self.ray_vtxs.vertex.set1Value(1, picked_p_coords)
-            is_point_picked = True
+            self.picked_tail = picked_point.getPath().getTail()
+        else:
+            # show the sphere only if an object is pickable
+            self.sph_node.whichChild = SO_SWITCH_NONE
 
         # returning value seems to be safer
         return picked_point, picked_p_coords.getValue()
 
+    def get_picked_tail(self):
+        return self.picked_tail
+
     def update_lever(self, x_lever_value, y_lever_value):
+        self.old_buttons_state.lever_x = self.buttons_state.lever_x
+        self.old_buttons_state.lever_y = self.buttons_state.lever_y
         self.buttons_state.lever_x = x_lever_value.current_state
         self.buttons_state.lever_y = y_lever_value.current_state
         self.logger.debug(
@@ -215,6 +226,7 @@ class xrController:
             self.buttons_state.lever_y)
 
     def update_grab(self, grab_value):
+        self.old_buttons_state.grab = self.buttons_state.grab
         self.buttons_state.grab = grab_value.current_state
         self.logger.debug(
             "Controller %d Grab %.2f",
@@ -224,8 +236,14 @@ class xrController:
     def get_local_transf(self):
         return self.con_localtransform
 
+    def get_global_transf(self):
+        return self.con_transform
+
     def get_buttons_states(self):
         return self.buttons_state
+
+    def get_old_buttons_states(self):
+        return self.old_buttons_state
 
     def read_file(self, filename):
         # Open the input file

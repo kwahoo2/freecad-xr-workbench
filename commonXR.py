@@ -26,6 +26,7 @@
 import preferences as pref
 import controllerXR as conXR
 import movementXR as movXR
+import menuCoin
 from math import tan, pi
 import FreeCADGui as Gui
 from pivy.coin import SoTransform
@@ -316,6 +317,7 @@ class XRwidget(QOpenGLWidget):
         self.prepare_xr_controls()
         self.setup_cameras()
         self.setup_controllers()
+        self.setup_menus()
         self.setup_scene()  # have to be last, after cameras and controllers setup
         self.read_preferences()
         self.reload_scenegraph()
@@ -359,10 +361,6 @@ class XRwidget(QOpenGLWidget):
             self.render_target_size[1])
         # scene manager overhead over render manager seems to be pretty small
         self.m_sceneManager = SoSceneManager()
-        # only one picked_point, assuming user will use single hand for picking
-        self.coin_picked_point = None
-        self.coin_picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
-        self.coin_picked_point_is_new = False
         self.environ = SoEnvironment()
         # done in read_preferences
         # self.environ.ambientIntensity.setValue(self.ambient_light_intensity)
@@ -404,6 +402,9 @@ class XRwidget(QOpenGLWidget):
                 if self.xr_con[hand].get_ray_scenegraph():
                     self.sgrp[eye_index].addChild(
                         self.xr_con[hand].get_ray_scenegraph())  # ray for controller
+            # add menu
+            self.sgrp[eye_index].addChild(
+                self.con_menu.get_menu_scenegraph())
             # add world (scene without controllers and gui elements)
             self.sgrp[eye_index].addChild(self.world_separator)
 
@@ -412,7 +413,7 @@ class XRwidget(QOpenGLWidget):
         self.xr_con = [
             conXR.xrController(
                 self.primary_con,
-                ray=False,
+                ray=True,
                 log_level=self.log_level),
             conXR.xrController(
                 self.secondary_con,
@@ -421,6 +422,10 @@ class XRwidget(QOpenGLWidget):
         # create movement object for world transformation based on controller
         # input
         self.mov_xr = movXR.xrMovement()
+
+    def setup_menus(self):
+        # initialize menus floating in the 3D view
+        self.con_menu = menuCoin.coinMenu()
 
     def read_preferences(self):
         # read from user preferences
@@ -434,7 +439,14 @@ class XRwidget(QOpenGLWidget):
         self.light.intensity.setValue(self.directional_light_intensity)
         self.sample_count = pref.preferences().GetInt(
             "MSAA", 4)  # MSAA number of samples, requires restart
-        self.mov_xr.set_movement_type(pref.preferences().GetString("Movement", "ARCH"))
+        movement_type = pref.preferences().GetString(
+            "Movement", "ARCH")
+        self.mov_xr.set_movement_type(movement_type)
+        # preselecting button in the VR menu
+        if (movement_type == "FREE"):
+            self.con_menu.select_widget_by_name("free_mov_button")
+        elif (movement_type == "ARCH"):
+            self.con_menu.select_widget_by_name("arch_mov_button")
 
     def reload_scenegraph(self):
         sg = Gui.ActiveDocument.ActiveView.getSceneGraph()  # get active scenegraph
@@ -990,31 +1002,6 @@ class XRwidget(QOpenGLWidget):
                 )
                 self.xr_con[hand].update_lever(x_lever_value, y_lever_value)
                 self.xr_con[hand].update_grab(grab_value)
-                # teleport implementation
-                if self.xr_con[hand].get_ray_scenegraph():
-                    if (self.xr_con[hand].get_buttons_states(
-                    ).grab >= 0.5):  # do traversal only if trigger pressed, because it is expensive
-                        # traverse only the world, avoid picking controller
-                        # gizmos or other non-world objects
-                        self.xr_con[hand].show_ray()
-                        self.coin_picked_point, self.coin_picked_p_coords = self.xr_con[hand].find_picked_coin_object(
-                            self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
-                        if (self.coin_picked_point):
-                            self.coin_picked_point_is_new = True
-                    if ((self.xr_con[hand].get_buttons_states().grab < 0.5) and (
-                            self.coin_picked_point_is_new)):
-                        self.coin_picked_point_is_new = False
-                        self.xr_con[hand].hide_ray()
-                        teleport_transform = SoTransform()
-                        teleport_transform.translation.setValue(
-                            SbVec3f(
-                                self.coin_picked_p_coords) -
-                            self.camera[0].position.getValue() +
-                            SbVec3f(
-                                0.0,
-                                self.hmdpos[1],
-                                0.0))
-                        self.world_transform.combineRight(teleport_transform)
             else:
                 self.xr_con[hand].hide_controller()
 
@@ -1075,11 +1062,96 @@ class XRwidget(QOpenGLWidget):
             frame_end_info.layers = [ctypes.byref(self.projection_layer), ]
         xr.end_frame(self.session, frame_end_info)
 
+    def check_teleport_jump(self):
+        # teleport implementation
+        hand = self.secondary_con
+        if self.xr_con[hand].get_ray_scenegraph():
+            if (self.xr_con[hand].get_buttons_states().grab >= 0.5
+                    and self.xr_con[hand].get_old_buttons_states().grab < 0.5):
+                # just pressed
+                self.xr_con[hand].show_ray()
+            elif (self.xr_con[hand].get_buttons_states().grab > 0.5):
+                # traverse just to update the ray view
+                self.xr_con[hand].find_picked_coin_object(
+                    self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
+            elif (self.xr_con[hand].get_buttons_states().grab < 0.5
+                  and self.xr_con[hand].get_old_buttons_states().grab >= 0.5):
+                # just released
+                # do traversal only if trigger is pressed or just released,
+                # because it is expensive
+                # traverse only the world, avoid picking controller
+                # gizmos or other non-world objects
+                coin_picked_point, coin_picked_p_coords = self.xr_con[hand].find_picked_coin_object(
+                    self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
+                if (coin_picked_point):
+                    teleport_transform = SoTransform()
+                    teleport_transform.translation.setValue(
+                        SbVec3f(coin_picked_p_coords) -
+                        self.camera[0].position.getValue() +
+                        SbVec3f(
+                            0.0,
+                            self.hmdpos[1],
+                            0.0))
+                    self.world_transform.combineRight(teleport_transform)
+                self.xr_con[hand].hide_ray()
+
+    def check_menu_selection(self):
+        # menu implementation, hidden by default, shows if trigger pressed
+        hand = self.primary_con
+        if self.xr_con[hand].get_ray_scenegraph():
+            # if just pressed
+            if (self.xr_con[hand].get_buttons_states().grab >= 0.5
+                    and self.xr_con[hand].get_old_buttons_states().grab < 0.5):
+                # menus are independedent from controller gizmos
+                # location stays after showing the menu
+                pos = self.xr_con[hand].get_global_transf().translation
+                rot = self.xr_con[hand].get_global_transf().rotation
+                self.con_menu.update_location(pos, rot)
+                self.con_menu.show_menu()
+                self.xr_con[hand].show_ray()
+            # if pressed
+            elif (self.xr_con[hand].get_buttons_states().grab > 0.5):
+                # show the ray
+                self.xr_con[hand].find_picked_coin_object(
+                    self.con_menu.get_menu_scenegraph(),
+                    self.vp_reg,
+                    self.near_plane,
+                    self.far_plane)
+            # if just released
+            elif (self.xr_con[hand].get_buttons_states().grab < 0.5
+                  and self.xr_con[hand].get_old_buttons_states().grab >= 0.5):
+                # traverse menu scenegraph
+                menu_picked_point, menu_picked_p_coords = self.xr_con[hand].find_picked_coin_object(
+                    self.con_menu.get_menu_scenegraph(), self.vp_reg, self.near_plane, self.far_plane)
+                if (menu_picked_point):
+                    tail = self.xr_con[hand].get_picked_tail()
+                    widget = self.con_menu.find_picked_widget(tail)
+                    self.process_menu_selection(widget)
+                self.xr_con[hand].hide_ray()
+                # hide delay allows user to see what he chose
+                QTimer.singleShot(1000, self.con_menu.hide_menu)
+
+    def process_menu_selection(self, widget):
+        name = widget.name
+        if (name == "free_mov_button"):
+            pref.preferences().SetString(
+                "Movement", "FREE")
+            self.mov_xr.set_movement_type("FREE")
+        elif (name == "arch_mov_button"):
+            pref.preferences().SetString(
+                "Movement", "ARCH")
+            self.mov_xr.set_movement_type("ARCH")
+
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / \
             1e9  # XrTime is measured in nanoseconds (int64)
         self.frame_duration = curr_time - self.old_time
         self.old_time = curr_time
+
+        self.check_teleport_jump()
+
+        self.check_menu_selection()
+
         final_mov_speed = self.frame_duration * \
             self.user_mov_speed  # translation (movement) speed
         final_rot_speed = self.frame_duration * self.user_rot_speed
