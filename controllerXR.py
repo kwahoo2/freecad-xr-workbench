@@ -44,6 +44,8 @@ class ButtonsState:
     lever_x: float = 0.0
     lever_y: float = 0.0
 
+# histeresis for grab and lever update
+hister = 0.2
 
 class xrController:
     def __init__(self, iden=0, ray=False, log_level=logging.WARNING):
@@ -57,6 +59,8 @@ class xrController:
         self.iden = iden
         self.buttons_state = ButtonsState()
         self.old_buttons_state = ButtonsState()
+        # with histeresis for analog values
+        self.hist_buttons_state = ButtonsState()
         self.con_localtransform = SoTransform()
         self.con_transform = SoTransform()
         if ray:
@@ -222,6 +226,13 @@ class xrController:
     def update_lever(self, x_lever_value, y_lever_value):
         self.old_buttons_state.lever_x = self.buttons_state.lever_x
         self.old_buttons_state.lever_y = self.buttons_state.lever_y
+        # update only if difference bigger than defined value
+        if (abs(self.buttons_state.lever_x -
+                self.hist_buttons_state.lever_x) > hister):
+            self.hist_buttons_state.lever_x = self.buttons_state.lever_x
+        if (abs(self.buttons_state.lever_y -
+                self.hist_buttons_state.lever_y) > hister):
+            self.hist_buttons_state.lever_y = self.buttons_state.lever_y
         self.buttons_state.lever_x = x_lever_value.current_state
         self.buttons_state.lever_y = y_lever_value.current_state
         self.logger.debug(
@@ -232,6 +243,8 @@ class xrController:
 
     def update_grab(self, grab_value):
         self.old_buttons_state.grab = self.buttons_state.grab
+        if (abs(self.buttons_state.grab - self.hist_buttons_state.grab) > hister):
+            self.hist_buttons_state.grab = self.buttons_state.grab
         self.buttons_state.grab = grab_value.current_state
         self.logger.debug(
             "Controller %d Grab %.2f",
@@ -249,6 +262,9 @@ class xrController:
 
     def get_old_buttons_states(self):
         return self.old_buttons_state
+
+    def get_hist_buttons_states(self):
+        return self.hist_buttons_state
 
     def read_file(self, filename):
         # Open the input file
