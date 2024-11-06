@@ -28,7 +28,7 @@ import os
 from dataclasses import dataclass
 
 from pivy.coin import SoSeparator
-from pivy.coin import SbVec3f, SbRotation
+from pivy.coin import SbVec3f, SbVec4f, SbRotation
 from pivy.coin import SoTransform, SoTranslation
 from pivy.coin import SoCube, SoSphere
 from pivy.coin import SoInput, SoDB
@@ -66,6 +66,7 @@ class xrController:
         else:
             self.ray_node = None
         self.picked_tail = None
+        self.picked_tex_coords = SbVec4f(0, 0, 0, 0)
         self.add_controller_shape()
 
     def add_controller_shape(self):
@@ -204,6 +205,7 @@ class xrController:
             self.sph_trans.translation.setValue(picked_p_coords)
             self.ray_vtxs.vertex.set1Value(1, picked_p_coords)
             self.picked_tail = picked_point.getPath().getTail()
+            self.picked_tex_coords = picked_point.getTextureCoords()
         else:
             # show the sphere only if an object is pickable
             self.sph_node.whichChild = SO_SWITCH_NONE
@@ -213,6 +215,9 @@ class xrController:
 
     def get_picked_tail(self):
         return self.picked_tail
+
+    def get_picked_tex_coords(self):
+        return self.picked_tex_coords.getValue()
 
     def update_lever(self, x_lever_value, y_lever_value):
         self.old_buttons_state.lever_x = self.buttons_state.lever_x

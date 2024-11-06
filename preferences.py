@@ -26,7 +26,6 @@ import FreeCADGui
 
 translate = FreeCAD.Qt.translate
 
-
 def preferences():
     return FreeCAD.ParamGet(
         "User parameter:BaseApp/Preferences/Mod/freecad-xr-workbench")

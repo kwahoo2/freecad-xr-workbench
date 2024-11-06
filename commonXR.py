@@ -447,6 +447,10 @@ class XRwidget(QOpenGLWidget):
             self.con_menu.select_widget_by_name("free_mov_button")
         elif (movement_type == "ARCH"):
             self.con_menu.select_widget_by_name("arch_mov_button")
+        self.con_menu.select_widget_by_name(
+            "lin_speed_slider", self.user_mov_speed)
+        self.con_menu.select_widget_by_name(
+            "rot_speed_slider", self.user_rot_speed)
 
     def reload_scenegraph(self):
         sg = Gui.ActiveDocument.ActiveView.getSceneGraph()  # get active scenegraph
@@ -1125,10 +1129,11 @@ class XRwidget(QOpenGLWidget):
                     self.con_menu.get_menu_scenegraph(), self.vp_reg, self.near_plane, self.far_plane)
                 if (menu_picked_point):
                     tail = self.xr_con[hand].get_picked_tail()
-                    widget = self.con_menu.find_picked_widget(tail)
+                    coords = self.xr_con[hand].get_picked_tex_coords()
+                    widget = self.con_menu.find_picked_widget(tail, coords)
                     self.process_menu_selection(widget)
                 self.xr_con[hand].hide_ray()
-                # hide delay allows user to see what he chose
+                # hide delay allows user to see what he has chosen
                 QTimer.singleShot(1000, self.con_menu.hide_menu)
 
     def process_menu_selection(self, widget):
@@ -1141,6 +1146,14 @@ class XRwidget(QOpenGLWidget):
             pref.preferences().SetString(
                 "Movement", "ARCH")
             self.mov_xr.set_movement_type("ARCH")
+        elif (name == "lin_speed_slider"):
+            self.user_mov_speed = widget.value
+            pref.preferences().SetInt("LinearSpeed",
+                                      round(self.user_mov_speed * 100))
+        elif (name == "rot_speed_slider"):
+            self.user_rot_speed = widget.value
+            pref.preferences().SetInt("RotationalSpeed",
+                                      round(self.user_rot_speed * 100))
 
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / \
@@ -1152,9 +1165,13 @@ class XRwidget(QOpenGLWidget):
 
         self.check_menu_selection()
 
+        # additional multiplier if 0 - 1 range is too small
+        aux_mul = 2
+        # translation (movement) speed
         final_mov_speed = self.frame_duration * \
-            self.user_mov_speed  # translation (movement) speed
-        final_rot_speed = self.frame_duration * self.user_rot_speed
+            self.user_mov_speed * aux_mul
+        final_rot_speed = self.frame_duration * \
+            self.user_rot_speed * aux_mul
         # transformation with movement at this particular moment
         # combine it with existing world transformation
         self.world_transform.combineLeft(self.mov_xr.calculate_transformation(
