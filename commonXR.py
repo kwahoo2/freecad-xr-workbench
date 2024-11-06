@@ -364,7 +364,7 @@ class XRwidget(QOpenGLWidget):
         self.environ = SoEnvironment()
         # done in read_preferences
         # self.environ.ambientIntensity.setValue(self.ambient_light_intensity)
-        # # without ambient lighting some places would be completely dark
+        # without ambient lighting some places would be completely dark
         self.m_sceneManager.setViewportRegion(self.vp_reg)
         self.m_sceneManager.setBackgroundColor(SbColor(0.6, 0.6, 0.8))
         self.light = SoDirectionalLight()

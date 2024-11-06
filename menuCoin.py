@@ -27,6 +27,7 @@ from pivy.coin import SbVec3f, SbRotation
 from pivy.coin import SoSwitch, SoPickStyle, SO_SWITCH_NONE, SO_SWITCH_ALL
 from pivy.coin import SoCube, SoText3
 from pivy.coin import SoBaseColor, SbColor
+from pivy.coin import SoDirectionalLight
 
 color_notsel = SbColor(0.5, 0.5, 0.5)
 color_select = SbColor(0, 1, 0)
@@ -169,6 +170,11 @@ class coinMenu:
         # location copied from hand
         self.location = SoTransform()
         self.menu_node.addChild(self.location)
+        # for better menu visibility
+        light = SoDirectionalLight()
+        light.direction.setValue(-1, -1, -1)
+        light.intensity.setValue(0.5)
+        self.menu_node.addChild(light)
         self.free_mov_button = buttonWidget("free_mov_button", "Free", 1)
         # set location relative to menu
         self.free_mov_button.set_location(
