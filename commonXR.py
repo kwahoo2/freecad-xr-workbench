@@ -1114,7 +1114,8 @@ class XRwidget(QOpenGLWidget):
                 # location stays after showing the menu
                 pos = self.xr_con[hand].get_global_transf().translation
                 rot = self.xr_con[hand].get_global_transf().rotation
-                self.con_menu.update_location(pos, rot)
+                if not self.hide_menu_timer.isActive(): # menu still visible
+                    self.con_menu.update_location(pos, rot)
                 self.con_menu.show_menu()
                 self.xr_con[hand].show_ray()
             # if pressed
@@ -1167,6 +1168,9 @@ class XRwidget(QOpenGLWidget):
 
         self.check_teleport_jump()
 
+        if pref.pref_updated:
+            self.read_preferences()
+            pref.reset_upd_flag()
         self.check_menu_selection()
 
         # additional multiplier if 0 - 1 range is too small

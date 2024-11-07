@@ -26,10 +26,16 @@ import FreeCADGui
 
 translate = FreeCAD.Qt.translate
 
+# flag for rendering loop that it should read preferences
+pref_updated = False
+
+def reset_upd_flag():
+    global pref_updated
+    pref_updated = False
+
 def preferences():
     return FreeCAD.ParamGet(
         "User parameter:BaseApp/Preferences/Mod/freecad-xr-workbench")
-
 
 class PreferencesPage:
     def __init__(self, parent=None):
@@ -47,6 +53,8 @@ class PreferencesPage:
             pref.SetString("Movement", "ARCH")
         elif self.form.movFreeRadioButton.isChecked():
             pref.SetString("Movement", "FREE")
+        global pref_updated
+        pref_updated = True
 
 
     def loadSettings(self):
