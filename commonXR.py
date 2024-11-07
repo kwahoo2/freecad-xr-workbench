@@ -1109,13 +1109,14 @@ class XRwidget(QOpenGLWidget):
             # if just pressed
             if (self.xr_con[hand].get_buttons_states().grab >= 0.5
                     and self.xr_con[hand].get_hist_buttons_states().grab < 0.5):
-                self.hide_menu_timer.stop()
                 # menus are independent from controller gizmos
                 # location stays after showing the menu
                 pos = self.xr_con[hand].get_global_transf().translation
                 rot = self.xr_con[hand].get_global_transf().rotation
-                if not self.hide_menu_timer.isActive(): # menu still visible
+                # do not update location if still visible
+                if (self.hide_menu_timer.remainingTime() <= 0):
                     self.con_menu.update_location(pos, rot)
+                self.hide_menu_timer.stop()
                 self.con_menu.show_menu()
                 self.xr_con[hand].show_ray()
             # if pressed
@@ -1139,7 +1140,7 @@ class XRwidget(QOpenGLWidget):
                     self.process_menu_selection(widget)
                 self.xr_con[hand].hide_ray()
                 # hide delay allows user to see what he has chosen
-                self.hide_menu_timer.start(1000)
+                self.hide_menu_timer.start(2000)
 
     def process_menu_selection(self, widget):
         name = widget.name
@@ -1151,6 +1152,9 @@ class XRwidget(QOpenGLWidget):
             pref.preferences().SetString(
                 "Movement", "ARCH")
             self.mov_xr.set_movement_type("ARCH")
+            rot = self.world_transform.rotation.getValue()
+            rot = self.mov_xr.reset_rot_axis(rot, SbVec3f(0, 1, 0))
+            self.world_transform.rotation.setValue(rot)
         elif (name == "lin_speed_slider"):
             self.user_mov_speed = widget.value
             pref.preferences().SetInt("LinearSpeed",

@@ -155,3 +155,11 @@ class xrMovement:
                                     mov_speed, rot_speed)
         else:
             return SoTransform()
+
+    def reset_rot_axis(self, rot, axis):
+        # resets rotation to given axis
+        # useful when eg we want viewer standing normal to floor
+        loc_axis = rot.multVec(axis)
+        corr_rot = SbRotation(loc_axis, axis)
+        rot = rot * corr_rot
+        return rot
