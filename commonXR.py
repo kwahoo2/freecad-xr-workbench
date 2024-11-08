@@ -203,6 +203,8 @@ class DockWidget(QDockWidget):
         self.setFeatures(QDockWidget.DockWidgetMovable |
                          QDockWidget.DockWidgetFloatable)
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
+        if not pref.preferences().GetBool("MirrorEnable", False):
+            self.hide_mirror()
 
     def closeEvent(self, event):
         self.xr_widget.terminate()
@@ -329,6 +331,7 @@ class XRwidget(QOpenGLWidget):
         self.timer_gui = QTimer()  # timer used to update non-vr things like widget title bar
         QObject.connect(self.timer_gui, SIGNAL("timeout()"), self.update_gui)
         self.timer_gui.start(100)
+        print("XR session has started")
 
     def debug_callback_py(
             self,
@@ -536,10 +539,11 @@ class XRwidget(QOpenGLWidget):
     def initializeGL(self):
         funcs = self.context.functions()
         funcs.initializeOpenGLFunctions()
-        self.gl_logger = QOpenGLDebugLogger(self)
-        self.gl_logger.initialize()
-        self.gl_logger.messageLogged.connect(self.log_message)
-        self.gl_logger.startLogging()
+        if self.logger.level == logging.DEBUG:
+            self.gl_logger = QOpenGLDebugLogger(self)
+            self.gl_logger.initialize()
+            self.gl_logger.messageLogged.connect(self.log_message)
+            self.gl_logger.startLogging()
 
         w, h = self.render_target_size
         # configure MSAA
@@ -1356,7 +1360,8 @@ class XRwidget(QOpenGLWidget):
         self.timer.stop()
         self.quit = True
         self.makeCurrent()
-        self.gl_logger.stopLogging()
+        if hasattr(self, 'gl_logger'):
+            self.gl_logger.stopLogging()
         if self.fbo_id is not None:
             GL.glDeleteFramebuffers(1, [self.fbo_id])
             self.fbo_id = None

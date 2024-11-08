@@ -49,6 +49,7 @@ class PreferencesPage:
         pref.SetInt("AmbientLightIntesity", self.form.ambiLiSlider.value())
         pref.SetInt("DirectionalLightIntesity", self.form.dirLiSlider.value())
         pref.SetInt("MSAA", self.form.msaaSpinBox.value())
+        pref.SetBool("MirrorEnable", self.form.mirrEnblCheckBox.isChecked())
         if self.form.movArchRadioButton.isChecked():
             pref.SetString("Movement", "ARCH")
         elif self.form.movFreeRadioButton.isChecked():
@@ -67,6 +68,7 @@ class PreferencesPage:
             pref.GetInt("DirectionalLightIntesity", 80))
         self.form.msaaSpinBox.setValue(pref.GetInt("MSAA", 4))
         mov_str = pref.GetString("Movement", "ARCH")
+        self.form.mirrEnblCheckBox.setChecked(pref.GetBool("MirrorEnable", False))
         if mov_str == "ARCH":
             self.form.movArchRadioButton.setChecked(True)
         elif mov_str == "FREE":
