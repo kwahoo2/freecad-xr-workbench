@@ -428,7 +428,10 @@ class XRwidget(QOpenGLWidget):
         self.con_menu = menuCoin.coinMenu()
         self.hide_menu_timer = QTimer()
         self.hide_menu_timer.setSingleShot(True)
-        QObject.connect(self.hide_menu_timer, SIGNAL("timeout()"), self.con_menu.hide_menu)
+        QObject.connect(
+            self.hide_menu_timer,
+            SIGNAL("timeout()"),
+            self.con_menu.hide_menu)
 
     def read_preferences(self):
         # read from user preferences
@@ -1073,16 +1076,17 @@ class XRwidget(QOpenGLWidget):
         # teleport implementation
         hand = self.secondary_con
         if self.xr_con[hand].get_ray_scenegraph():
-            if (self.xr_con[hand].get_buttons_states().grab >= 0.5
-                    and self.xr_con[hand].get_hist_buttons_states().grab < 0.5):
+            if (self.xr_con[hand].get_buttons_states().grab_ev ==
+                    conXR.AnInpEv.JUST_PRESSED):
                 # just pressed
                 self.xr_con[hand].show_ray()
-            elif (self.xr_con[hand].get_buttons_states().grab > 0.5):
+            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+                  conXR.AnInpEv.PRESSED):
                 # traverse just to update the ray view
                 self.xr_con[hand].find_picked_coin_object(
                     self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
-            elif (self.xr_con[hand].get_buttons_states().grab < 0.5
-                  and self.xr_con[hand].get_hist_buttons_states().grab >= 0.5):
+            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+                  conXR.AnInpEv.JUST_RELEASED):
                 # just released
                 # do traversal only if trigger is pressed or just released,
                 # because it is expensive
@@ -1107,8 +1111,8 @@ class XRwidget(QOpenGLWidget):
         hand = self.primary_con
         if self.xr_con[hand].get_ray_scenegraph():
             # if just pressed
-            if (self.xr_con[hand].get_buttons_states().grab >= 0.5
-                    and self.xr_con[hand].get_hist_buttons_states().grab < 0.5):
+            if (self.xr_con[hand].get_buttons_states().grab_ev ==
+                    conXR.AnInpEv.JUST_PRESSED):
                 # menus are independent from controller gizmos
                 # location stays after showing the menu
                 pos = self.xr_con[hand].get_global_transf().translation
@@ -1120,7 +1124,8 @@ class XRwidget(QOpenGLWidget):
                 self.con_menu.show_menu()
                 self.xr_con[hand].show_ray()
             # if pressed
-            elif (self.xr_con[hand].get_buttons_states().grab > 0.5):
+            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+                  conXR.AnInpEv.PRESSED):
                 # show the ray
                 self.xr_con[hand].find_picked_coin_object(
                     self.con_menu.get_menu_scenegraph(),
@@ -1128,8 +1133,8 @@ class XRwidget(QOpenGLWidget):
                     self.near_plane,
                     self.far_plane)
             # if just released
-            elif (self.xr_con[hand].get_buttons_states().grab < 0.5
-                  and self.xr_con[hand].get_hist_buttons_states().grab >= 0.5):
+            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+                  conXR.AnInpEv.JUST_RELEASED):
                 # traverse menu scenegraph
                 menu_picked_point, menu_picked_p_coords = self.xr_con[hand].find_picked_coin_object(
                     self.con_menu.get_menu_scenegraph(), self.vp_reg, self.near_plane, self.far_plane)

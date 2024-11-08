@@ -25,6 +25,7 @@ import logging
 
 import os
 
+from enum import Enum
 from dataclasses import dataclass
 
 from pivy.coin import SoSeparator
@@ -37,15 +38,24 @@ from pivy.coin import SoBaseColor, SbColor
 from pivy.coin import SoRayPickAction
 from pivy.coin import SoSwitch, SO_SWITCH_NONE, SO_SWITCH_ALL
 
+LOW_STATE = 0.3
+HIGH_STATE = 0.7
+
+
+class AnInpEv(Enum):
+    JUST_RELEASED = 1
+    RELEASED = 2
+    JUST_PRESSED = 3
+    PRESSED = 4
+
 
 @dataclass
 class ButtonsState:
     grab: float = 0.0
+    grab_ev: int = AnInpEv.RELEASED
     lever_x: float = 0.0
     lever_y: float = 0.0
 
-# histeresis for grab and lever update
-hister = 0.2
 
 class xrController:
     def __init__(self, iden=0, ray=False, log_level=logging.WARNING):
@@ -58,9 +68,6 @@ class xrController:
         self.controller_node.whichChild = SO_SWITCH_ALL
         self.iden = iden
         self.buttons_state = ButtonsState()
-        self.old_buttons_state = ButtonsState()
-        # with histeresis for analog values
-        self.hist_buttons_state = ButtonsState()
         self.con_localtransform = SoTransform()
         self.con_transform = SoTransform()
         if ray:
@@ -224,15 +231,6 @@ class xrController:
         return self.picked_tex_coords.getValue()
 
     def update_lever(self, x_lever_value, y_lever_value):
-        self.old_buttons_state.lever_x = self.buttons_state.lever_x
-        self.old_buttons_state.lever_y = self.buttons_state.lever_y
-        # update only if difference bigger than defined value
-        if (abs(self.buttons_state.lever_x -
-                self.hist_buttons_state.lever_x) > hister):
-            self.hist_buttons_state.lever_x = self.buttons_state.lever_x
-        if (abs(self.buttons_state.lever_y -
-                self.hist_buttons_state.lever_y) > hister):
-            self.hist_buttons_state.lever_y = self.buttons_state.lever_y
         self.buttons_state.lever_x = x_lever_value.current_state
         self.buttons_state.lever_y = y_lever_value.current_state
         self.logger.debug(
@@ -242,10 +240,20 @@ class xrController:
             self.buttons_state.lever_y)
 
     def update_grab(self, grab_value):
-        self.old_buttons_state.grab = self.buttons_state.grab
-        if (abs(self.buttons_state.grab - self.hist_buttons_state.grab) > hister):
-            self.hist_buttons_state.grab = self.buttons_state.grab
         self.buttons_state.grab = grab_value.current_state
+        if (self.buttons_state.grab > HIGH_STATE):
+            if (self.buttons_state.grab_ev == AnInpEv.RELEASED
+                    or self.buttons_state.grab_ev == AnInpEv.JUST_RELEASED):
+                self.buttons_state.grab_ev = AnInpEv.JUST_PRESSED
+            else:
+                self.buttons_state.grab_ev = AnInpEv.PRESSED
+        elif (self.buttons_state.grab < LOW_STATE):
+            if (self.buttons_state.grab_ev == AnInpEv.PRESSED
+                    or self.buttons_state.grab_ev == AnInpEv.JUST_PRESSED):
+                self.buttons_state.grab_ev = AnInpEv.JUST_RELEASED
+            else:
+                self.buttons_state.grab_ev = AnInpEv.RELEASED
+
         self.logger.debug(
             "Controller %d Grab %.2f",
             self.iden,
@@ -259,12 +267,6 @@ class xrController:
 
     def get_buttons_states(self):
         return self.buttons_state
-
-    def get_old_buttons_states(self):
-        return self.old_buttons_state
-
-    def get_hist_buttons_states(self):
-        return self.hist_buttons_state
 
     def read_file(self, filename):
         # Open the input file
