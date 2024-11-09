@@ -34,7 +34,7 @@ color_select = SbColor(0, 1, 0)
 
 
 class buttonWidget:
-    def __init__(self, name="", text="", radio_group=0):
+    def __init__(self, name="", text="", radio_group=0, width=0.08):
         self.name = name
         self.radio_group = radio_group
         self.button_sep = SoSeparator()
@@ -45,7 +45,7 @@ class buttonWidget:
         self.button_color.rgb = color_notsel
         self.button_sep.addChild(self.button_color)
         self.button_shape = SoCube()
-        self.button_shape.width.setValue(0.08)
+        self.button_shape.width.setValue(width)
         self.button_shape.height.setValue(0.035)
         self.button_shape.depth.setValue(0.01)
         self.button_sep.addChild(self.button_shape)
@@ -56,7 +56,7 @@ class buttonWidget:
         unpickable.style = SoPickStyle.UNPICKABLE
         self.button_sep.addChild(unpickable)
         text_rel_pos = SoTranslation()
-        text_rel_pos.translation.setValue(SbVec3f(-0.025, -0.007, 0.01))
+        text_rel_pos.translation.setValue(SbVec3f(-0.4 * width, -0.007, 0.01))
         label = SoText3()
         text_scale = SoScale()
         text_scale.scaleFactor.setValue(SbVec3f(0.002, 0.002, 0.002))
@@ -86,7 +86,7 @@ class buttonWidget:
 
 
 class sliderWidget:
-    def __init__(self, name="", text="", value=0.5):
+    def __init__(self, name="", text="", value=0.5, width=0.25):
         self.name = name
         self.value = value
         self.slider_sep = SoSeparator()
@@ -96,7 +96,7 @@ class sliderWidget:
         self.back_color.rgb = SbColor(0.5, 0.5, 0.5)
         self.slider_sep.addChild(self.back_color)
         self.back_shape = SoCube()
-        self.slider_width = 0.25
+        self.slider_width = width
         self.back_shape.width.setValue(self.slider_width)
         self.back_shape.height.setValue(0.035)
         self.back_shape.depth.setValue(0.01)
@@ -175,20 +175,19 @@ class coinMenu:
         light.direction.setValue(-1, -1, -1)
         light.intensity.setValue(0.5)
         self.menu_node.addChild(light)
+
+        # buttons in radio group 1
         self.free_mov_button = buttonWidget("free_mov_button", "Free", 1)
         # set location relative to menu
         self.free_mov_button.set_location(
             SbVec3f(-0.05, 0.1, -0.3), SbRotation(0, 0, 0, 0))
-        self.menu_node.addChild(self.free_mov_button.get_scenegraph())
         self.widget_list.append(self.free_mov_button)
 
-        # button in radio group 1
         self.arch_mov_button = buttonWidget("arch_mov_button", "Arch", 1)
         self.arch_mov_button.set_location(
             SbVec3f(
                 0.05, 0.1, -0.3), SbRotation(
                 0, 0, 0, 0))
-        self.menu_node.addChild(self.arch_mov_button.get_scenegraph())
         self.widget_list.append(self.arch_mov_button)
 
         self.lin_speed_slider = sliderWidget(
@@ -197,7 +196,6 @@ class coinMenu:
             SbVec3f(
                 0.0, 0.15, -0.3), SbRotation(
                 0, 0, 0, 0))
-        self.menu_node.addChild(self.lin_speed_slider.get_scenegraph())
         self.widget_list.append(self.lin_speed_slider)
 
         self.rot_speed_slider = sliderWidget(
@@ -206,8 +204,22 @@ class coinMenu:
             SbVec3f(
                 0.0, 0.2, -0.3), SbRotation(
                 0, 0, 0, 0))
-        self.menu_node.addChild(self.rot_speed_slider.get_scenegraph())
         self.widget_list.append(self.rot_speed_slider)
+
+        # buttons in radio group 2
+        self.teleport_mode_button = buttonWidget("teleport_mode_button", "Teleport Mode", 2, 0.2)
+        self.teleport_mode_button.set_location(
+            SbVec3f(0.25, 0.1, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.teleport_mode_button)
+
+        self.line_builder_button = buttonWidget("line_builder_button", "Line Mode", 2, 0.2)
+        self.line_builder_button.set_location(
+            SbVec3f(0.25, 0.05, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.line_builder_button)
+
+        # add Coin3D representation of every widget
+        for w in self.widget_list:
+            self.menu_node.addChild(w.get_scenegraph())
 
     def update_location(self, pos, rot):
         self.location.translation = pos

@@ -27,6 +27,7 @@ import preferences as pref
 import controllerXR as conXR
 import movementXR as movXR
 import menuCoin
+import documentInteraction as docInter
 from math import tan, pi
 import FreeCADGui as Gui
 from pivy.coin import SoTransform
@@ -45,6 +46,7 @@ from pivy.coin import SbColor
 from pivy.coin import SoSeparator
 import ctypes
 import logging
+from enum import Enum
 
 try:
     from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
@@ -191,6 +193,11 @@ stringForFormat = {
 }
 
 
+class InteractMode(Enum):
+    TELEPORT = 1
+    LINE_BUILDER = 2
+
+
 class DockWidget(QDockWidget):
     def __init__(self, parent=None):
         QDockWidget.__init__(self, parent)
@@ -204,7 +211,8 @@ class DockWidget(QDockWidget):
                          QDockWidget.DockWidgetFloatable)
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
         if not pref.preferences().GetBool("MirrorEnable", False):
-            self.hide_mirror()
+            # hide after some rendering is done
+            QTimer.singleShot(3000, self.hide_mirror)
 
     def closeEvent(self, event):
         self.xr_widget.terminate()
@@ -307,6 +315,7 @@ class XRwidget(QOpenGLWidget):
         self.primary_con = 0
         # 0 is the left one - defined in hand_paths
         self.secondary_con = 1
+        self.interact_mode = InteractMode.TELEPORT
         self.frame_duration = 0
         self.render_duration = 0
 
@@ -460,6 +469,7 @@ class XRwidget(QOpenGLWidget):
             "lin_speed_slider", self.user_mov_speed)
         self.con_menu.select_widget_by_name(
             "rot_speed_slider", self.user_rot_speed)
+        self.con_menu.select_widget_by_name("teleport_mode_button")
 
     def reload_scenegraph(self):
         sg = Gui.ActiveDocument.ActiveView.getSceneGraph()  # get active scenegraph
@@ -1079,24 +1089,28 @@ class XRwidget(QOpenGLWidget):
     def check_teleport_jump(self):
         # teleport implementation
         hand = self.secondary_con
-        if self.xr_con[hand].get_ray_scenegraph():
-            if (self.xr_con[hand].get_buttons_states().grab_ev ==
+        con = self.xr_con[hand]
+        if con.get_ray_scenegraph():
+            if (con.get_buttons_states().grab_ev ==
                     conXR.AnInpEv.JUST_PRESSED):
                 # just pressed
-                self.xr_con[hand].show_ray()
-            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+                con.show_ray()
+            elif (con.get_buttons_states().grab_ev ==
                   conXR.AnInpEv.PRESSED):
                 # traverse just to update the ray view
-                self.xr_con[hand].find_picked_coin_object(
-                    self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
-            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+                con.find_picked_coin_object(
+                    self.world_separator,
+                    self.vp_reg,
+                    self.near_plane,
+                    self.far_plane)
+            elif (con.get_buttons_states().grab_ev ==
                   conXR.AnInpEv.JUST_RELEASED):
                 # just released
                 # do traversal only if trigger is pressed or just released,
                 # because it is expensive
                 # traverse only the world, avoid picking controller
                 # gizmos or other non-world objects
-                coin_picked_point, coin_picked_p_coords = self.xr_con[hand].find_picked_coin_object(
+                coin_picked_point, coin_picked_p_coords = con.find_picked_coin_object(
                     self.world_separator, self.vp_reg, self.near_plane, self.far_plane)
                 if (coin_picked_point):
                     teleport_transform = SoTransform()
@@ -1108,46 +1122,64 @@ class XRwidget(QOpenGLWidget):
                             self.hmdpos[1],
                             0.0))
                     self.world_transform.combineRight(teleport_transform)
-                self.xr_con[hand].hide_ray()
+                con.hide_ray()
+
+    def interact_line_builder(self):
+        hand = self.secondary_con
+        con = self.xr_con[hand]
+        if (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_PRESSED):
+            transform = SoTransform()
+            transform.copyFieldValues(con.get_local_transf())
+            # XR to FreeCAD coordinate system transformation
+            cs_transform = SoTransform()
+            cs_transform.scaleFactor.setValue(1000, 1000, 1000)
+            cs_transform.rotation.setValue(
+                SbRotation(SbVec3f(1, 0, 0), pi / 2))
+            transform.combineRight(self.world_transform)
+            transform.combineRight(cs_transform)
+            point = transform.translation.getValue()
+            docInter.add_point(point)
 
     def check_menu_selection(self):
         # menu implementation, hidden by default, shows if trigger pressed
         hand = self.primary_con
-        if self.xr_con[hand].get_ray_scenegraph():
+        con = self.xr_con[hand]
+        if con.get_ray_scenegraph():
             # if just pressed
-            if (self.xr_con[hand].get_buttons_states().grab_ev ==
+            if (con.get_buttons_states().grab_ev ==
                     conXR.AnInpEv.JUST_PRESSED):
                 # menus are independent from controller gizmos
                 # location stays after showing the menu
-                pos = self.xr_con[hand].get_global_transf().translation
-                rot = self.xr_con[hand].get_global_transf().rotation
+                pos = con.get_global_transf().translation
+                rot = con.get_global_transf().rotation
                 # do not update location if still visible
                 if (self.hide_menu_timer.remainingTime() <= 0):
                     self.con_menu.update_location(pos, rot)
                 self.hide_menu_timer.stop()
                 self.con_menu.show_menu()
-                self.xr_con[hand].show_ray()
+                con.show_ray()
             # if pressed
-            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+            elif (con.get_buttons_states().grab_ev ==
                   conXR.AnInpEv.PRESSED):
                 # show the ray
-                self.xr_con[hand].find_picked_coin_object(
+                con.find_picked_coin_object(
                     self.con_menu.get_menu_scenegraph(),
                     self.vp_reg,
                     self.near_plane,
                     self.far_plane)
             # if just released
-            elif (self.xr_con[hand].get_buttons_states().grab_ev ==
+            elif (con.get_buttons_states().grab_ev ==
                   conXR.AnInpEv.JUST_RELEASED):
                 # traverse menu scenegraph
-                menu_picked_point, menu_picked_p_coords = self.xr_con[hand].find_picked_coin_object(
+                menu_picked_point, menu_picked_p_coords = con.find_picked_coin_object(
                     self.con_menu.get_menu_scenegraph(), self.vp_reg, self.near_plane, self.far_plane)
                 if (menu_picked_point):
-                    tail = self.xr_con[hand].get_picked_tail()
-                    coords = self.xr_con[hand].get_picked_tex_coords()
+                    tail = con.get_picked_tail()
+                    coords = con.get_picked_tex_coords()
                     widget = self.con_menu.find_picked_widget(tail, coords)
                     self.process_menu_selection(widget)
-                self.xr_con[hand].hide_ray()
+                con.hide_ray()
                 # hide delay allows user to see what he has chosen
                 self.hide_menu_timer.start(2000)
 
@@ -1172,6 +1204,10 @@ class XRwidget(QOpenGLWidget):
             self.user_rot_speed = widget.value
             pref.preferences().SetInt("RotationalSpeed",
                                       round(self.user_rot_speed * 100))
+        elif (name == "teleport_mode_button"):
+            self.interact_mode = InteractMode.TELEPORT
+        elif (name == "line_builder_button"):
+            self.interact_mode = InteractMode.LINE_BUILDER
 
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / \
@@ -1179,7 +1215,10 @@ class XRwidget(QOpenGLWidget):
         self.frame_duration = curr_time - self.old_time
         self.old_time = curr_time
 
-        self.check_teleport_jump()
+        if self.interact_mode == InteractMode.TELEPORT:
+            self.check_teleport_jump()
+        elif self.interact_mode == InteractMode.LINE_BUILDER:
+            self.interact_line_builder()
 
         if pref.pref_updated:
             self.read_preferences()
