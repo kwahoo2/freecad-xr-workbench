@@ -212,10 +212,15 @@ class coinMenu:
             SbVec3f(0.25, 0.1, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.teleport_mode_button)
 
-        self.line_builder_button = buttonWidget("line_builder_button", "Line Mode", 2, 0.2)
+        self.line_builder_button = buttonWidget("line_builder_button", "Line Builder", 2, 0.2)
         self.line_builder_button.set_location(
             SbVec3f(0.25, 0.05, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.line_builder_button)
+
+        self.cube_builder_button = buttonWidget("cube_builder_button", "Cube Builder", 2, 0.2)
+        self.cube_builder_button.set_location(
+            SbVec3f(0.25, 0, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.cube_builder_button)
 
         # add Coin3D representation of every widget
         for w in self.widget_list:

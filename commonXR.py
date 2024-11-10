@@ -31,14 +31,13 @@ import documentInteraction as docInter
 from math import tan, pi
 import FreeCADGui as Gui
 from pivy.coin import SoTransform
-from pivy.coin import SoRotationXYZ
 from pivy.coin import SoGroup
 from pivy.coin import SbRotation
-from pivy.coin import SoScale
 from pivy.coin import SoEnvironment
 from pivy.coin import SoDirectionalLight
 from pivy.coin import SoCamera
 from pivy.coin import SbVec3f
+from pivy.coin import SbMatrix
 from pivy.coin import SoFrustumCamera
 from pivy.coin import SbViewportRegion
 from pivy.coin import SoSceneManager
@@ -196,6 +195,7 @@ stringForFormat = {
 class InteractMode(Enum):
     TELEPORT = 1
     LINE_BUILDER = 2
+    CUBE_BUILDER = 3
 
 
 class DockWidget(QDockWidget):
@@ -221,6 +221,8 @@ class DockWidget(QDockWidget):
     def hide_mirror(self):
         self.xr_widget.disable_mirror()
         self.hide()
+        print(
+            "Mirror window is hidden now, modify default behavior in preferences or reopen it manually if needed")
 
     def unhide_mirror(self):
         self.xr_widget.enable_mirror()
@@ -384,19 +386,19 @@ class XRwidget(QOpenGLWidget):
         # done in read_preferences
         # self.light.intensity.setValue(self.directional_light_intensity)
         self.light.color.setValue(1, 1, 1)
-        scale = SoScale()
+        # scene coordinates have to be transformed from FreeCAD document CS to
+        # XR one
+        self.doc_xr_transform = SoTransform()
         # OpenXR uses meters not millimeters
-        scale.scaleFactor.setValue(0.001, 0.001, 0.001)
-        rot = SoRotationXYZ()  # rotate scene to set Z as vertical
-        rot.axis.setValue(SoRotationXYZ.X)
-        rot.angle.setValue(-pi / 2)
+        self.doc_xr_transform.scaleFactor.setValue(0.001, 0.001, 0.001)
+        # rotate scene to set Z as vertical
+        self.doc_xr_transform.rotation.setValue(
+            SbRotation(SbVec3f(1, 0, 0), -pi / 2))
         self.sg = SoSeparator()  # placeholder for scenegraph
         # store complete transformation of world, including artificial movement
         self.world_transform = SoTransform()
         self.world_separator = SoSeparator()
-        # this rotation is only to make FC scene Z-Up
-        self.world_separator.addChild(rot)
-        self.world_separator.addChild(scale)
+        self.world_separator.addChild(self.doc_xr_transform)
         self.world_separator.addChild(self.sg)  # add FreeCAD active scenegraph
         self.cgrp = [SoGroup(), SoGroup()]  # group for camera
         self.sgrp = [SoGroup(), SoGroup()]  # group for scenegraph
@@ -1124,22 +1126,48 @@ class XRwidget(QOpenGLWidget):
                     self.world_transform.combineRight(teleport_transform)
                 con.hide_ray()
 
+    def get_doc_transf(self, con_transf):
+        # XR to FreeCAD coordinate system transformation
+        transform = SoTransform()
+        transform.copyFieldValues(con_transf)
+        transform.combineRight(self.world_transform)
+        mat = SbMatrix()
+        inv = SbMatrix()
+        self.doc_xr_transform.getTranslationSpaceMatrix(mat, inv)
+        transform.multRight(inv)
+        return transform
+
     def interact_line_builder(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
         if (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.JUST_PRESSED):
-            transform = SoTransform()
-            transform.copyFieldValues(con.get_local_transf())
-            # XR to FreeCAD coordinate system transformation
-            cs_transform = SoTransform()
-            cs_transform.scaleFactor.setValue(1000, 1000, 1000)
-            cs_transform.rotation.setValue(
-                SbRotation(SbVec3f(1, 0, 0), pi / 2))
-            transform.combineRight(self.world_transform)
-            transform.combineRight(cs_transform)
+            transform = self.get_doc_transf(con.get_local_transf())
             point = transform.translation.getValue()
-            docInter.add_point(point)
+            docInter.add_line_start(point)
+        elif (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.PRESSED):
+            transform = self.get_doc_transf(con.get_local_transf())
+            point = transform.translation.getValue()
+            docInter.move_line_end(point)
+        elif (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_RELEASED):
+            docInter.recompute()
+
+    def interact_cube_builder(self):
+        hand = self.secondary_con
+        con = self.xr_con[hand]
+        if (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_PRESSED):
+            transform = self.get_doc_transf(con.get_local_transf())
+            docInter.add_cube(transform)
+        elif (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.PRESSED):
+            transform = self.get_doc_transf(con.get_local_transf())
+            docInter.resize_cube(transform)
+        elif (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_RELEASED):
+            docInter.recompute()
 
     def check_menu_selection(self):
         # menu implementation, hidden by default, shows if trigger pressed
@@ -1208,6 +1236,8 @@ class XRwidget(QOpenGLWidget):
             self.interact_mode = InteractMode.TELEPORT
         elif (name == "line_builder_button"):
             self.interact_mode = InteractMode.LINE_BUILDER
+        elif (name == "cube_builder_button"):
+            self.interact_mode = InteractMode.CUBE_BUILDER
 
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / \
@@ -1219,6 +1249,8 @@ class XRwidget(QOpenGLWidget):
             self.check_teleport_jump()
         elif self.interact_mode == InteractMode.LINE_BUILDER:
             self.interact_line_builder()
+        elif self.interact_mode == InteractMode.CUBE_BUILDER:
+            self.interact_cube_builder()
 
         if pref.pref_updated:
             self.read_preferences()
