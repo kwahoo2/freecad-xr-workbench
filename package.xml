@@ -19,7 +19,7 @@
 
   <url type="readme">https://github.com/kwahoo2/freecad-xr-workbench/blob/main/README.md</url>
 
-  <icon>icons/Stepien_Glasses.svg</icon>
+  <icon>Gui/Resources/icons/preferences-xrworkbench.svg</icon>
 
   <content>
     <workbench>
