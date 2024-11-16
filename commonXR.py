@@ -1334,14 +1334,7 @@ class XRwidget(QOpenGLWidget):
                 " ms")
 
     def update_render(self):
-        if self.mirror_window:
-            self.update()
-        else:
-            self.makeCurrent()
-            self.paintGL()
-            self.doneCurrent()
-
-    def paintGL(self):
+        self.makeCurrent()
         if self.fbo_id is not None:  # make sure that initializeGL happened
             self.poll_xr_events()
             if self.quit:
@@ -1353,7 +1346,7 @@ class XRwidget(QOpenGLWidget):
                     self.update_xr_views()
                     ren_timer = QElapsedTimer()
                     ren_timer.start()
-                    self.oldfb = self.defaultFramebufferObject()  # widget's (not context) DFO
+                    self.window_fb = self.defaultFramebufferObject()  # widget's (not context) DFO
                     ai = xr.SwapchainImageAcquireInfo(None)
                     swapchain_index = xr.acquire_swapchain_image(
                         self.swapchain, ai)
@@ -1411,21 +1404,27 @@ class XRwidget(QOpenGLWidget):
 
                     ri = xr.SwapchainImageReleaseInfo()
                     xr.release_swapchain_image(self.swapchain, ri)
-                    if self.mirror_window:
-                        # fast blit from the fbo to the window surface
-                        GL.glBindFramebuffer(
-                            GL.GL_READ_FRAMEBUFFER, self.fbo_id)
-                        GL.glBindFramebuffer(
-                            GL.GL_DRAW_FRAMEBUFFER, self.oldfb)
-                        GL.glBlitFramebuffer(
-                            0, 0, w, h, 0, 0,
-                            self.size().width(), self.size().height(),
-                            GL.GL_COLOR_BUFFER_BIT,
-                            GL.GL_NEAREST
-                        )
-                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.oldfb)
+                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.window_fb)
 
                 self.end_xr_frame()
+                self.doneCurrent()
+        if self.mirror_window:
+            self.update()
+
+    def paintGL(self):
+        w, h = self.render_target_size
+        self.window_fb = self.defaultFramebufferObject()
+        # fast blit from the fbo to the window surface
+        GL.glBindFramebuffer(
+            GL.GL_READ_FRAMEBUFFER, self.fbo_id)
+        GL.glBindFramebuffer(
+            GL.GL_DRAW_FRAMEBUFFER, self.window_fb)
+        GL.glBlitFramebuffer(
+            0, 0, w, h, 0, 0,
+            self.size().width(), self.size().height(),
+            GL.GL_COLOR_BUFFER_BIT,
+            GL.GL_NEAREST
+        )
 
     def terminate(self):
         self.timer.stop()
