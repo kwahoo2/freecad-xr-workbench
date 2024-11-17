@@ -156,6 +156,7 @@ class xrController:
         self.con_localtransform.rotation.setValue(con_rot)
         # combine real hmd and artificial (stick-driven) movement
         con_worldtransform.combineLeft(self.con_localtransform)
+        print ("Controller:", con_pos.getValue(), con_rot.getValue())
         self.con_transform.rotation.setValue(
             con_worldtransform.rotation.getValue())
         self.con_transform.translation.setValue(

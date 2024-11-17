@@ -39,6 +39,7 @@ from pivy.coin import SoCamera
 from pivy.coin import SbVec3f
 from pivy.coin import SbMatrix
 from pivy.coin import SoFrustumCamera
+from pivy.coin import SoPerspectiveCamera
 from pivy.coin import SbViewportRegion
 from pivy.coin import SoSceneManager
 from pivy.coin import SbColor
@@ -329,6 +330,7 @@ class XRwidget(QOpenGLWidget):
         self.prepare_xr_composition_layers()
         self.prepare_xr_controls()
         self.setup_cameras()
+        self.setup_tppcamera()
         self.setup_controllers()
         self.setup_menus()
         self.setup_scene()  # have to be last, after cameras and controllers setup
@@ -368,6 +370,14 @@ class XRwidget(QOpenGLWidget):
             self.camera[eye_index].viewportMapping.setValue(
                 SoCamera.LEAVE_ALONE)
 
+    def setup_tppcamera(self):
+        self.tppcamera = SoPerspectiveCamera()
+        self.tppcamera.nearDistance.setValue(self.near_plane)
+        self.tppcamera.farDistance.setValue(self.far_plane)
+        # for Pi HQ camera, 6mm focal length
+        self.tppcamera.heightAngle.setValue(42.88 * pi / 180)
+        self.tppcamera.aspectRatio.setValue(6.29 / 4.71)
+
     def setup_scene(self):
         # coin3d setup
         self.vp_reg = SbViewportRegion(
@@ -400,9 +410,9 @@ class XRwidget(QOpenGLWidget):
         self.world_separator = SoSeparator()
         self.world_separator.addChild(self.doc_xr_transform)
         self.world_separator.addChild(self.sg)  # add FreeCAD active scenegraph
-        self.cgrp = [SoGroup(), SoGroup()]  # group for camera
-        self.sgrp = [SoGroup(), SoGroup()]  # group for scenegraph
-        self.root_scene = [SoSeparator(), SoSeparator()]
+        self.cgrp = [SoGroup(), SoGroup(), SoGroup()]  # group for camera
+        self.sgrp = [SoGroup(), SoGroup(), SoGroup()]  # group for scenegraph
+        self.root_scene = [SoSeparator(), SoSeparator(), SoSeparator()] # third one is for TPP camera
         for eye_index in range(2):
             self.root_scene[eye_index].ref()
             self.root_scene[eye_index].addChild(self.cgrp[eye_index])
@@ -421,6 +431,23 @@ class XRwidget(QOpenGLWidget):
                 self.con_menu.get_menu_scenegraph())
             # add world (scene without controllers and gui elements)
             self.sgrp[eye_index].addChild(self.world_separator)
+
+        # TPP camera world
+        self.root_scene[2].ref()
+        self.root_scene[2].addChild(self.cgrp[2])
+        self.cgrp[2].addChild(self.tppcamera)
+        self.root_scene[2].addChild(self.sgrp[2])
+        self.sgrp[2].addChild(self.environ)
+        self.sgrp[2].addChild(self.light)
+        for hand in range(len(self.xr_con)):
+            self.sgrp[2].addChild(
+                self.xr_con[hand].get_controller_scenegraph())
+            if self.xr_con[hand].get_ray_scenegraph():
+                self.sgrp[2].addChild(
+                    self.xr_con[hand].get_ray_scenegraph())  # ray for controller
+        self.sgrp[2].addChild(
+            self.con_menu.get_menu_scenegraph())
+        self.sgrp[2].addChild(self.world_separator)
 
     def setup_controllers(self):
         # initialise scenegraphs for controllers
@@ -483,6 +510,8 @@ class XRwidget(QOpenGLWidget):
         if xr.EXT_DEBUG_UTILS_EXTENSION_NAME not in discovered_extensions:
             self.enable_debug = False
         requested_extensions = [xr.KHR_OPENGL_ENABLE_EXTENSION_NAME]
+        # for TPP camera tracker
+        requested_extensions.append(xr.extension.HTCX_vive_tracker_interaction.NAME)
         if self.enable_debug:
             requested_extensions.append(xr.EXT_DEBUG_UTILS_EXTENSION_NAME)
         for extension in requested_extensions:
@@ -959,6 +988,8 @@ class XRwidget(QOpenGLWidget):
             create_info=action_space_info,
         )
 
+        self.prepare_tracker()
+
         xr.attach_session_action_sets(
             session=self.session,
             attach_info=xr.SessionActionSetsAttachInfo(
@@ -966,6 +997,45 @@ class XRwidget(QOpenGLWidget):
                 action_sets=ctypes.pointer(self.action_set),
             ),
         )
+
+    def prepare_tracker(self):
+        # TPP camera
+        self.tracker_role_paths = [xr.string_to_path(self.instance,
+                                              "/user/vive_tracker_htcx/role/camera")]
+        self.tracker_pose_action = xr.create_action(
+            action_set=self.action_set,
+            create_info=xr.ActionCreateInfo(
+                action_type=xr.ActionType.POSE_INPUT,
+                action_name="tracker_pose",
+                localized_action_name="Tracker Pose",
+                count_subaction_paths=1,
+                subaction_paths=self.tracker_role_paths,
+            ),
+        )
+        # Describe a suggested binding for that action and subaction path
+        suggested_binding_paths = [xr.ActionSuggestedBinding(
+                self.tracker_pose_action,
+                xr.string_to_path(self.instance, "/user/vive_tracker_htcx/role/camera/input/grip/pose")
+        )]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(self.instance, "/interaction_profiles/htc/vive_tracker_htcx"),
+                count_suggested_bindings=len(suggested_binding_paths),
+                suggested_bindings=suggested_binding_paths,
+            )
+        )
+        # Create action space for locating tracker
+        action_space_info = xr.ActionSpaceCreateInfo(
+            action=self.tracker_pose_action,
+            subaction_path=self.tracker_role_paths[0],
+        )
+
+        assert action_space_info.pose_in_action_space.orientation.w == 1
+        self.tracker_space = xr.create_action_space(
+                session=self.session,
+                create_info=action_space_info,
+            )
 
     def update_xr_controls(self):
         hand_count = self.hand_count
@@ -1030,6 +1100,54 @@ class XRwidget(QOpenGLWidget):
                 self.xr_con[hand].update_grab(grab_value)
             else:
                 self.xr_con[hand].hide_controller()
+
+        # Tracker part
+        tracker_pose_state = xr.get_action_state_pose(
+            session=self.session,
+            get_info=xr.ActionStateGetInfo(
+                action=self.tracker_pose_action,
+                subaction_path=self.tracker_role_paths[0],
+            ),
+        )
+        # xrSpaceLocation contains "pose" field with position and
+        # orientation
+        tracker_space_location = xr.locate_space(
+            space=self.tracker_space,
+            base_space=self.projection_layer.space,
+            time=self.frame_state.predicted_display_time,
+        )
+        if (tracker_space_location.location_flags &
+                xr.SPACE_LOCATION_POSITION_VALID_BIT):
+            self.update_tpp_camera(tracker_space_location)
+
+    def update_tpp_camera(self, space_location):
+        tracker_rot = SbRotation(
+            space_location.pose.orientation.x,
+            space_location.pose.orientation.y,
+            space_location.pose.orientation.z,
+            space_location.pose.orientation.w)
+        tracker_pos = SbVec3f(
+            space_location.pose.position.x,
+            space_location.pose.position.y,
+            space_location.pose.position.z)
+        # print ("Tracker:", tracker_pos.getValue(), tracker_rot.getValue())
+        cam_transform = SoTransform()
+        cam_transform.translation.setValue(
+            self.world_transform.translation.getValue())  # transfer values only
+        cam_transform.rotation.setValue(
+            self.world_transform.rotation.getValue())
+        cam_transform.center.setValue(
+            self.world_transform.center.getValue())
+        tracker_transform = SoTransform()
+        tracker_transform.translation.setValue(tracker_pos)
+        tracker_transform.rotation.setValue(tracker_rot)
+        # combine real tracker and arificial (stick-driven) camera movement
+        cam_transform.combineLeft(tracker_transform)
+        self.tppcamera.orientation.setValue(
+            cam_transform.rotation.getValue())
+        self.tppcamera.position.setValue(
+            cam_transform.translation.getValue())
+
 
     def poll_xr_events(self):
         while True:
@@ -1414,17 +1532,32 @@ class XRwidget(QOpenGLWidget):
     def paintGL(self):
         w, h = self.render_target_size
         self.window_fb = self.defaultFramebufferObject()
-        # fast blit from the fbo to the window surface
+        GL.glUseProgram(0)
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_msaa_id)
+        w, h = self.render_target_size
+        # "render" to the swapchain image
+        GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+        GL.glEnable(GL.GL_BLEND)
+
+        self.vp_reg.setViewportPixels(0, 0, w, h)
+        self.m_sceneManager.setViewportRegion(self.vp_reg)
+        self.m_sceneManager.setSceneGraph(self.root_scene[2])
+        GL.glEnable(GL.GL_CULL_FACE)
+        GL.glEnable(GL.GL_DEPTH_TEST)
+        self.m_sceneManager.render()
+        GL.glDisable(GL.GL_CULL_FACE)
+        GL.glDisable(GL.GL_DEPTH_TEST)
+
         GL.glBindFramebuffer(
-            GL.GL_READ_FRAMEBUFFER, self.fbo_id)
-        GL.glBindFramebuffer(
-            GL.GL_DRAW_FRAMEBUFFER, self.window_fb)
+            GL.GL_READ_FRAMEBUFFER, self.fbo_msaa_id)
+        GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.window_fb)
         GL.glBlitFramebuffer(
             0, 0, w, h, 0, 0,
-            self.size().width(), self.size().height(),
+            w, h,
             GL.GL_COLOR_BUFFER_BIT,
             GL.GL_NEAREST
         )
+        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.window_fb)
 
     def terminate(self):
         self.timer.stop()
