@@ -4,11 +4,36 @@ A Virtual Reality (OpenXR) workbench written in Python. Aims for easier installa
 
 [Forum thread](https://forum.freecad.org/viewtopic.php?t=39526)
 
+# This is a branch for making mixed reality videos
+
+The HMD mirror view is replaced by a view generated with tracked third person camera.
+
 ![FreeCAD-XR][fcxr]
 
 [fcxr]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/main/.github/images/fcxr-screen.png "View of active workbench"
 
+
 ## Prerequisites
+
+### Special requirements for this branch
+
+The camera tracker should be set to the "Camera" role.
+
+Adjust the camera geometry in the `commonXR.py`:
+
+```
+        self.tppcamera.heightAngle.setValue(42.88 * pi / 180)
+        self.tppcamera.aspectRatio.setValue(6.29 / 4.71) 
+```
+
+Adjust camera to tracker relative location:
+
+```
+        # adjust camera to tracker rotation - OpenXR coordinates (Y vertical)
+        cam_tracker_rot = SbRotation(SbVec3f(0, 1, 0), pi)
+        # adjust camera to tracker translation - OpenXR coordinates (meters)
+        cam_tracker_transl = SbVec3f(0.034, -0.033, 0)
+```
 
 ### Software Dependencies
 
