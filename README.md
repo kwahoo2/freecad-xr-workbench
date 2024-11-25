@@ -10,7 +10,7 @@ The HMD mirror view is replaced by a view generated with tracked third person ca
 
 ![FreeCAD-XR][fcxr]
 
-[fcxr]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/main/.github/images/fcxr-screen.png "View of active workbench"
+[fcxr]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/tpp-cam/.github/images/fcxr-screen.png "View of active workbench"
 
 
 ## Prerequisites
