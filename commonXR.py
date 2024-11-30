@@ -210,12 +210,15 @@ class DockWidget(QDockWidget):
         self.setFeatures(QDockWidget.DockWidgetMovable |
                          QDockWidget.DockWidgetFloatable)
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
+        # without this QDockWidget does not know that main window has been closed
+        mw.mainWindowClosed.connect(self.close)
         if not pref.preferences().GetBool("MirrorEnable", False):
             # hide after some rendering is done
             QTimer.singleShot(3000, self.hide_mirror)
 
     def closeEvent(self, event):
         self.xr_widget.terminate()
+        print("Closing XR window")
         event.accept()
 
     def hide_mirror(self):
@@ -284,27 +287,25 @@ class XRwidget(QOpenGLWidget):
         # it will interfere with the OpenXR frame loop timing
         frmt = self.context.format()
         frmt.setSwapInterval(0)
-        frmt.setProfile(QSurfaceFormat.OpenGLContextProfile.CoreProfile)
-        frmt.setMajorVersion(4)
-        frmt.setMinorVersion(5)
         frmt.setRedBufferSize(8)
         frmt.setGreenBufferSize(8)
         frmt.setBlueBufferSize(8)
         frmt.setDepthBufferSize(24)
         frmt.setStencilBufferSize(8)
         frmt.setAlphaBufferSize(8)
-        frmt.setSwapBehavior(QSurfaceFormat.DoubleBuffer)
+        frmt.setSwapBehavior(QSurfaceFormat.SingleBuffer)
         # multiple samples not required as MSAA is done in another buffer
         frmt.setSamples(1)
-        frmt.setOption(QSurfaceFormat.DebugContext)
-        ctx = QOpenGLContext()
-        ctx.setFormat(frmt)
-        ctx.create()
-        if ctx.hasExtension(b"GL_KHR_debug"):
-            print("GL_KHR_debug extension available")
-        else:
-            print("GL_KHR_debug extension NOT available")
-        self.context = ctx
+        if log_level == logging.DEBUG:
+            frmt.setOption(QSurfaceFormat.DebugContext)
+
+        self.context.setFormat(frmt)
+
+        if log_level == logging.DEBUG:
+            if self.context.hasExtension(b"GL_KHR_debug"):
+                print("GL_KHR_debug extension available")
+            else:
+                print("GL_KHR_debug extension NOT available")
 
         self.logger.debug("OpenGL Context: %s", self.context)
         # drawing QOpenGLWidget mirror window may degrade frame timing
