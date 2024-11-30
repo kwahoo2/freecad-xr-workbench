@@ -5,9 +5,9 @@
 
   <description>A Virtual Reality (OpenXR) workbench. View your models with VR goggles.</description>
 
-  <version>0.9.0</version>
+  <version>0.9.1</version>
 
-  <date>2024-09-28</date>
+  <date>2024-11-30</date>
 
   <maintainer email="adrian.v.przekwas@gmail.com">Adrian Przekwas</maintainer>
 

@@ -77,6 +77,10 @@ Fortunately, there is a way to combine the best of both world - use Monado with 
 
 `STEAMVR_LH_ENABLE=true monado-service`
 
+In some Linux/X11 setups vertical synchronisation is forced for all apps. This will cause performance issues if the mirror window is enabled. You can disable v-sync by adding `vblank_mode=0`, eg.:
+
+`XR_RUNTIME_JSON=/usr/local/share/openxr/1/openxr_monado.json vblank_mode=0 ./FreeCAD_1.0.0-conda-Linux-x86_64-py311.AppImage`
+
 ## License
 
 Check [LICENSE](LICENSE) for details.
