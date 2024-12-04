@@ -22,11 +22,28 @@
 
 from pivy.coin import SbVec3f, SbRotation
 from pivy.coin import SoTransform
+from dataclasses import dataclass
+
+# only for key enums
+from PySide.QtCore import Qt
+
+# movement forced by keyboard input, float as some inertia implementation
+# might be useful
+
+
+@dataclass
+class KeyboardMovement:
+    walk: float = 0.0  # forward - backward
+    sidestep: float = 0.0  # left - right
+    xrot: float = 0.0  # pitch
+    yrot: float = 0.0  # yaw
+    zrot: float = 0.0  # roll
 
 
 class xrMovement:
     def __init__(self, mov_type='ARCH'):
         self.movement_type = mov_type
+        self.key_mov = KeyboardMovement()
 
     def set_movement_type(self, mov_type):
         self.movement_type = mov_type
@@ -140,21 +157,67 @@ class xrMovement:
     def calculate_transformation(self, hmdpos, hmdrot,
                                  pri_con, sec_con,
                                  mov_speed, rot_speed):
+        # transformation based on motion controllers input
         pri_con_inp = pri_con.get_buttons_states()
         sec_con_inp = sec_con.get_buttons_states()
+        transf = SoTransform()
         if self.movement_type == 'ARCH':
-            return self.transf_arch(hmdpos, hmdrot,
-                                    pri_con_inp, sec_con_inp,
-                                    mov_speed, rot_speed)
+            transf = self.transf_arch(hmdpos, hmdrot,
+                                      pri_con_inp, sec_con_inp,
+                                      mov_speed, rot_speed)
         elif self.movement_type == 'FREE':
             pri_con_local_transf = pri_con.get_local_transf()
             sec_con_local_transf = sec_con.get_local_transf()
-            return self.transf_free(pri_con_inp, sec_con_inp,
-                                    pri_con_local_transf,
-                                    sec_con_local_transf,
-                                    mov_speed, rot_speed)
-        else:
-            return SoTransform()
+            transf = self.transf_free(pri_con_inp, sec_con_inp,
+                                      pri_con_local_transf,
+                                      sec_con_local_transf,
+                                      mov_speed, rot_speed)
+        # additional transformation based on keyboard input
+        transf_kb = SoTransform()
+        rot_x = SbRotation(SbVec3f(1, 0, 0), self.key_mov.xrot * rot_speed)
+        rot_y = SbRotation(SbVec3f(0, 1, 0), self.key_mov.yrot * rot_speed)
+        rot_z = SbRotation(SbVec3f(0, 0, 1), self.key_mov.zrot * rot_speed)
+        rot = rot_x * rot_y * rot_z
+        transf_kb.rotation.setValue(rot)
+        trsl = SbVec3f(self.key_mov.sidestep, 0, self.key_mov.walk) * mov_speed
+        transf_kb.translation.setValue(trsl)
+        transf.combineRight(transf_kb)
+        return transf
+
+    def key_pressed(self, key):
+        # redefine keybindings here
+        if (key == Qt.Key_Left):
+            self.key_mov.yrot = 1.0
+        if (key == Qt.Key_Right):
+            self.key_mov.yrot = -1.0
+        if (key == Qt.Key_Down):
+            self.key_mov.xrot = -1.0
+        if (key == Qt.Key_Up):
+            self.key_mov.xrot = 1.0
+        if (key == Qt.Key_U):
+            self.key_mov.zrot = 1.0
+        if (key == Qt.Key_O):
+            self.key_mov.zrot = -1.0
+        if (key == Qt.Key_K):
+            self.key_mov.walk = 1.0
+        if (key == Qt.Key_I):
+            self.key_mov.walk = -1.0
+        if (key == Qt.Key_L):
+            self.key_mov.sidestep = 1.0
+        if (key == Qt.Key_J):
+            self.key_mov.sidestep = -1.0
+
+    def key_released(self, key):
+        if (key == Qt.Key_Left or Qt.Key_Right):
+            self.key_mov.yrot = 0
+        if (key == Qt.Key_Down or key == Qt.Key_Up):
+            self.key_mov.xrot = 0
+        if (key == Qt.Key_U or key == Qt.Key_O):
+            self.key_mov.zrot = 0
+        if (key == Qt.Key_K or key == Qt.Key_I):
+            self.key_mov.walk = 0
+        if (key == Qt.Key_L or key == Qt.Key_J):
+            self.key_mov.sidestep = 0
 
     def reset_rot_axis(self, rot, axis):
         # resets rotation to given axis

@@ -241,6 +241,9 @@ class XRwidget(QOpenGLWidget):
         QOpenGLWidget.__init__(self, parent)
         self.log_level = log_level
         self.setAttribute(Qt.WA_DeleteOnClose)
+        # keyboard input focus, note: widget must be shown get focus
+        self.setFocusPolicy(Qt.ClickFocus)
+        self.grabKeyboard()
 
         self.render_target_size = None
         self.window = None
@@ -1473,6 +1476,14 @@ class XRwidget(QOpenGLWidget):
 
     def log_message(self, message):
         print(f"OpenGL Debug: {message.message()}")
+
+    # getting key events requires widget's focus
+    # widget have to be shown, and get focus after user clicking in it
+    def keyPressEvent(self, event):
+        self.mov_xr.key_pressed(event.key())
+
+    def keyReleaseEvent(self, event):
+        self.mov_xr.key_released(event.key())
 
 
 xr_dock_w = None
