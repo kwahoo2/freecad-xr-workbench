@@ -58,7 +58,7 @@ class xrMovement:
         # moves viewer up/down and left/right
         # analog stick/trackpad of the second controller
         # rotates viewer around center of the HMD and moves forward/backward
-        # adjust self.primary_con and self.secondary_con to your prefereces
+        # adjust self.primary_con and self.secondary_con to your preferences
         # *********************************************************************
         qx = hmdrot.getValue()[0]
         qy = hmdrot.getValue()[1]
@@ -133,6 +133,23 @@ class xrMovement:
         sec_transf_mod.combineLeft(prim_transf_mod)
         return sec_transf_mod
 
+    def transf_keyboard(self, hmdrot, mov_speed, rot_speed):
+        # hmdrot is SbRotation, not SoRotation node
+        # movement direction follows HMD orientatoion
+        transf_kb = SoTransform()
+        rot_x = SbRotation(hmdrot.multVec(SbVec3f(1, 0, 0)), self.key_mov.xrot)
+        rot_y = SbRotation(hmdrot.multVec(SbVec3f(0, 1, 0)), self.key_mov.yrot)
+        rot_z = SbRotation(hmdrot.multVec(SbVec3f(0, 0, 1)), self.key_mov.zrot)
+
+        rot = rot_x * rot_y * rot_z
+        rot.scaleAngle(rot_speed)
+        transf_kb.rotation.setValue(rot)
+
+        trsl = SbVec3f(self.key_mov.sidestep, 0, self.key_mov.walk)
+        trsl_transf = hmdrot.multVec(-trsl * mov_speed)
+        transf_kb.translation.setValue(trsl_transf)
+        return transf_kb
+
     def calculate_transformation(self, hmdpos, hmdrot,
                                  pri_con, sec_con,
                                  mov_speed, rot_speed):
@@ -152,19 +169,12 @@ class xrMovement:
                                       sec_con_local_transf,
                                       mov_speed, rot_speed)
         # additional transformation based on keyboard input
-        transf_kb = SoTransform()
-        rot_x = SbRotation(SbVec3f(1, 0, 0), self.key_mov.xrot * rot_speed)
-        rot_y = SbRotation(SbVec3f(0, 1, 0), self.key_mov.yrot * rot_speed)
-        rot_z = SbRotation(SbVec3f(0, 0, 1), self.key_mov.zrot * rot_speed)
-        rot = rot_x * rot_y * rot_z
-        transf_kb.rotation.setValue(rot)
-        trsl = SbVec3f(self.key_mov.sidestep, 0, self.key_mov.walk) * mov_speed
-        transf_kb.translation.setValue(trsl)
-        transf.combineRight(transf_kb)
+        transf.combineRight(self.transf_keyboard(hmdrot, mov_speed, rot_speed))
         return transf
 
     def key_pressed(self, key):
         # redefine keybindings here
+        # and in key_released
         if (key == Qt.Key_Left):
             self.key_mov.yrot = 1.0
         if (key == Qt.Key_Right):
@@ -178,13 +188,13 @@ class xrMovement:
         if (key == Qt.Key_O):
             self.key_mov.zrot = -1.0
         if (key == Qt.Key_K):
-            self.key_mov.walk = 1.0
-        if (key == Qt.Key_I):
             self.key_mov.walk = -1.0
+        if (key == Qt.Key_I):
+            self.key_mov.walk = 1.0
         if (key == Qt.Key_L):
-            self.key_mov.sidestep = 1.0
-        if (key == Qt.Key_J):
             self.key_mov.sidestep = -1.0
+        if (key == Qt.Key_J):
+            self.key_mov.sidestep = 1.0
 
     def key_released(self, key):
         if (key == Qt.Key_Left or Qt.Key_Right):
