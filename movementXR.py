@@ -106,45 +106,24 @@ class xrMovement:
 
         # primary controller
         prim_transf_mod = SoTransform()
-        qx = pri_con_local_transf.rotation.getValue().getValue()[0]
-        qy = pri_con_local_transf.rotation.getValue().getValue()[1]
-        qz = pri_con_local_transf.rotation.getValue().getValue()[2]
-        qw = pri_con_local_transf.rotation.getValue().getValue()[3]
 
-        xaxis = pri_con_inp.lever_x
+        rot_pri = pri_con_local_transf.rotation.getValue()
         yaxis = pri_con_inp.lever_y
 
-        mat02 = 2 * qx * qz + 2 * qy * qw
-        mat12 = 2 * qy * qz - 2 * qx * qw
-        mat22 = 1 - 2 * qx * qx - 2 * qy * qy
-
-        step = SbVec3f(-yaxis * mat02 * mov_speed,
-                       -yaxis * mat12 * mov_speed,
-                       -yaxis * mat22 * mov_speed)
+        z_move = SbVec3f(0, 0, yaxis)
+        step = rot_pri.multVec(-z_move * mov_speed)
         prim_transf_mod.translation.setValue(step)
 
         # secondary controller
         sec_transf_mod = SoTransform()
-        qx = sec_con_local_transf.rotation.getValue().getValue()[0]
-        qy = sec_con_local_transf.rotation.getValue().getValue()[1]
-        qz = sec_con_local_transf.rotation.getValue().getValue()[2]
-        qw = sec_con_local_transf.rotation.getValue().getValue()[3]
+        rot_sec = sec_con_local_transf.rotation.getValue()
 
         xaxis = sec_con_inp.lever_x
         yaxis = sec_con_inp.lever_y
 
-        mat00 = 1 - 2 * qy * qy - 2 * qz * qz
-        mat02 = 2 * qx * qz + 2 * qy * qw
-        mat10 = 2 * qx * qy + 2 * qz * qw
-        mat12 = 2 * qy * qz - 2 * qx * qw
-        mat20 = 2 * qx * qz - 2 * qy * qw
-        mat22 = 1 - 2 * qx * qx - 2 * qy * qy
-
-        con_x_axis = SbVec3f(mat00, mat10, mat20)
-        con_z_axis = SbVec3f(mat02, mat12, mat22)
         # stick moves world around one of controller axes
-        con_x_rot = SbRotation(con_x_axis, -yaxis)
-        con_z_rot = SbRotation(con_z_axis, -xaxis)
+        con_x_rot = SbRotation(rot_sec.multVec(SbVec3f(1, 0, 0)), -yaxis)
+        con_z_rot = SbRotation(rot_sec.multVec(SbVec3f(0, 0, 1)), -xaxis)
 
         sec_con_pos = sec_con_local_transf.translation.getValue()
         pad_rot = con_x_rot * con_z_rot

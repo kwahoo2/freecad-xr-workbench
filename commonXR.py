@@ -210,7 +210,8 @@ class DockWidget(QDockWidget):
         self.setFeatures(QDockWidget.DockWidgetMovable |
                          QDockWidget.DockWidgetFloatable)
         mw.addDockWidget(Qt.RightDockWidgetArea, self)
-        # without this QDockWidget does not know that main window has been closed
+        # without this QDockWidget does not know that main window has been
+        # closed
         mw.mainWindowClosed.connect(self.close)
         if not pref.preferences().GetBool("MirrorEnable", False):
             # hide after some rendering is done

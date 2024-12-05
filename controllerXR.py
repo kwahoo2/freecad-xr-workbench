@@ -147,19 +147,12 @@ class xrController:
             space_location.pose.position.y,
             space_location.pose.position.z)
         con_worldtransform = SoTransform()
-        con_worldtransform.translation.setValue(
-            world_transform.translation.getValue())
-        con_worldtransform.rotation.setValue(
-            world_transform.rotation.getValue())
-        con_worldtransform.center.setValue(world_transform.center.getValue())
+        con_worldtransform.copyFieldValues(world_transform)
         self.con_localtransform.translation.setValue(con_pos)
         self.con_localtransform.rotation.setValue(con_rot)
         # combine real hmd and artificial (stick-driven) movement
         con_worldtransform.combineLeft(self.con_localtransform)
-        self.con_transform.rotation.setValue(
-            con_worldtransform.rotation.getValue())
-        self.con_transform.translation.setValue(
-            con_worldtransform.translation.getValue())
+        self.con_transform.copyFieldValues(con_worldtransform)
         self.con_transform.center.setValue(SbVec3f(0, 0, 0))
 
     def update_ray_axis(self):
