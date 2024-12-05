@@ -64,6 +64,19 @@ The XR workbench can use two motion controllers to introduce artificial movement
 
 Additionally, a teleport movement is available: press secondary (default right) controller trigger, a ray become visible. Release the trigger, you will be teleported to place where the ray was intersecting (indicated by a small sphere) an object.
 
+### Keyboard input
+If motion controllers are unavailable, a keyboard can be used.
+
+| Keys             | Move type       |
+| ---------------- | ----------------|
+| Up/Down Arrows   | Pitch           |
+| Left/Right Arrows| Yaw             |
+| U/O              | Roll            |
+| I/K              | Forward/Backward|
+| J/L              | Left/Right      |
+
+Depending on platform, the mirror window may or may not need to be shown and focused (click into to focus) to catch keys.
+
 ## Known issues:
 
 Wayland/EGL support not implemented yet.
