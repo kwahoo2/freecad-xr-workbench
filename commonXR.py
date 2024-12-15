@@ -463,6 +463,8 @@ class XRwidget(QOpenGLWidget):
         # read from user preferences
         self.user_mov_speed = pref.preferences().GetInt("LinearSpeed", 50) / 100
         self.user_rot_speed = pref.preferences().GetInt("RotationalSpeed", 50) / 100
+        sf = 0.001
+        self.doc_xr_transform.scaleFactor.setValue(sf, sf, sf)
         self.ambient_light_intensity = pref.preferences().GetInt(
             "AmbientLightIntesity", 40) / 100
         self.directional_light_intensity = pref.preferences().GetInt(
@@ -483,6 +485,9 @@ class XRwidget(QOpenGLWidget):
             "lin_speed_slider", self.user_mov_speed)
         self.con_menu.select_widget_by_name(
             "rot_speed_slider", self.user_rot_speed)
+        # 10 percent of slider is equal 1:1 scale (after m to mm conversion)
+        self.con_menu.select_widget_by_name(
+            "scale_slider", sf * 100)
         self.con_menu.select_widget_by_name("teleport_mode_button")
 
     def reload_scenegraph(self):
@@ -1332,6 +1337,9 @@ class XRwidget(QOpenGLWidget):
             self.user_rot_speed = widget.value
             pref.preferences().SetInt("RotationalSpeed",
                                       round(self.user_rot_speed * 100))
+        elif (name == "scale_slider"):
+            sf = widget.value / 100
+            self.doc_xr_transform.scaleFactor.setValue(sf, sf, sf)
         elif (name == "teleport_mode_button"):
             self.interact_mode = InteractMode.TELEPORT
         elif (name == "line_builder_button"):

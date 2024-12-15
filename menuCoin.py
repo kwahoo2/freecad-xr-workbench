@@ -206,6 +206,14 @@ class coinMenu:
                 0, 0, 0, 0))
         self.widget_list.append(self.rot_speed_slider)
 
+        self.scale_slider = sliderWidget(
+            "scale_slider", "Model Scale")
+        self.scale_slider.set_location(
+            SbVec3f(
+                0.0, 0.25, -0.3), SbRotation(
+                0, 0, 0, 0))
+        self.widget_list.append(self.scale_slider)
+
         # buttons in radio group 2
         self.teleport_mode_button = buttonWidget(
             "teleport_mode_button", "Teleport Mode", 2, 0.2)
