@@ -196,6 +196,8 @@ class InteractMode(Enum):
     TELEPORT = 1
     LINE_BUILDER = 2
     CUBE_BUILDER = 3
+    SELECT_MODE = 4
+    DRAG_MODE = 5
 
 
 class DockWidget(QDockWidget):
@@ -337,7 +339,7 @@ class XRwidget(QOpenGLWidget):
         self.setup_controllers()
         self.setup_menus()
         self.setup_scene()  # have to be last, after cameras and controllers setup
-        self.read_preferences()
+        self.read_preferences()  # done after scene and menu init
         self.reload_scenegraph()
 
         self.timer = QTimer()
@@ -451,6 +453,11 @@ class XRwidget(QOpenGLWidget):
             self.hide_menu_timer,
             SIGNAL("timeout()"),
             self.con_menu.hide_menu)
+        # this function may by unavailable in older FreeCAD versions
+        self.view = Gui.ActiveDocument.ActiveView
+        self.picking_available = "getObjectInfoRay" in dir(self.view)
+        if self.picking_available:
+            self.con_menu.add_picking_buttons()
 
     def read_preferences(self):
         # read from user preferences
@@ -479,7 +486,8 @@ class XRwidget(QOpenGLWidget):
         self.con_menu.select_widget_by_name("teleport_mode_button")
 
     def reload_scenegraph(self):
-        sg = Gui.ActiveDocument.ActiveView.getSceneGraph()  # get active scenegraph
+        self.view = Gui.ActiveDocument.ActiveView
+        sg = self.view.getSceneGraph()  # get active scenegraph
         self.world_separator.replaceChild(self.sg, sg)
         self.sg = sg
 
@@ -1097,6 +1105,7 @@ class XRwidget(QOpenGLWidget):
         # teleport implementation
         hand = self.secondary_con
         con = self.xr_con[hand]
+        con.make_ray_red()
         if con.get_ray_scenegraph():
             if (con.get_buttons_states().grab_ev ==
                     conXR.AnInpEv.JUST_PRESSED):
@@ -1130,6 +1139,9 @@ class XRwidget(QOpenGLWidget):
                             0.0))
                     self.world_transform.combineRight(teleport_transform)
                 con.hide_ray()
+            elif (con.get_buttons_states().grab_ev ==
+                  conXR.AnInpEv.RELEASED):
+                con.hide_ray()
 
     def get_doc_transf(self, con_transf):
         # XR to FreeCAD coordinate system transformation
@@ -1142,9 +1154,25 @@ class XRwidget(QOpenGLWidget):
         transform.multRight(inv)
         return transform
 
+    def get_doc_sbvec(self, vec):
+        # XR to FreeCAD point location transformation
+        vec_xr = None
+        if (vec):
+            mat = SbMatrix()
+            inv = SbMatrix()
+            self.doc_xr_transform.getTranslationSpaceMatrix(mat, inv)
+            mat_t = mat.transpose()
+            vec_xr = mat_t.multMatrixVec(vec)
+        return vec_xr
+
+    # the function creates a line with controller trigger
+    # press trigger to start drawing,
+    # move controller with trigger pressed where the end is expected
+    # release trigger to finish drawing
     def interact_line_builder(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
+        con.hide_ray()
         if (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.JUST_PRESSED):
             transform = self.get_doc_transf(con.get_local_transf())
@@ -1159,9 +1187,14 @@ class XRwidget(QOpenGLWidget):
                 conXR.AnInpEv.JUST_RELEASED):
             docInter.recompute()
 
+    # this function creates a cube with controller trigger
+    # press trigger to create a cube
+    # move controller with trigger pressed to change the cube size
+    # release trigger to finish drawing
     def interact_cube_builder(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
+        con.hide_ray()
         if (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.JUST_PRESSED):
             transform = self.get_doc_transf(con.get_local_transf())
@@ -1173,6 +1206,68 @@ class XRwidget(QOpenGLWidget):
         elif (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.JUST_RELEASED):
             docInter.recompute()
+
+    # this function selects a FreeCAD model (document object)
+    def interact_select_mode(self):
+        hand = self.secondary_con
+        con = self.xr_con[hand]
+        if (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_PRESSED):
+            transform = self.get_doc_transf(con.get_local_transf())
+            docInter.clear_selection()
+            docInter.select_object(transform, self.view)
+            # point location have to be transformed from Base::Vector to SbVec3f
+            # then transformed from XR coordinates to doc coordinates
+            i_sec = self.get_doc_sbvec(docInter.get_sel_sbvec())
+            if (i_sec):
+                con.make_ray_green()
+                con.show_ray_ext(i_sec)
+        elif (con.get_buttons_states().grab_ev ==
+              conXR.AnInpEv.RELEASED):
+            # shows the ray all the time
+            con.make_ray_red()
+            con.show_ray()
+            # traverse just to update the ray view
+            # should be less expensive than using getObjectInfoRay
+            con.find_picked_coin_object(
+                self.world_separator,
+                self.vp_reg,
+                self.near_plane,
+                self.far_plane)
+
+    # this function selects, then drags a FreeCAD model
+    # press trigger to select object
+    # move controller with trigger pressed to move the object
+    def interact_drag_mode(self):
+        hand = self.secondary_con
+        con = self.xr_con[hand]
+        if (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_PRESSED):
+            transform = self.get_doc_transf(con.get_local_transf())
+            docInter.clear_selection()
+            docInter.select_object(transform, self.view)
+            i_sec = self.get_doc_sbvec(docInter.get_sel_sbvec())
+            if (i_sec):
+                con.make_ray_green()
+                con.show_ray_ext(i_sec)
+        elif (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.PRESSED):
+            transform = self.get_doc_transf(con.get_local_transf())
+            # function returns where ray-object  intersection point should be
+            i_sec_xr = docInter.doc_to_coin_pnt(
+                docInter.drag_object(transform))
+            # transform to doc coordinates
+            i_sec = self.get_doc_sbvec(i_sec_xr)
+            con.show_ray_ext(i_sec)
+        elif (con.get_buttons_states().grab_ev ==
+              conXR.AnInpEv.RELEASED):
+            con.make_ray_red()
+            con.show_ray()
+            con.find_picked_coin_object(
+                self.world_separator,
+                self.vp_reg,
+                self.near_plane,
+                self.far_plane)
 
     def check_menu_selection(self):
         # menu implementation, hidden by default, shows if trigger pressed
@@ -1243,6 +1338,10 @@ class XRwidget(QOpenGLWidget):
             self.interact_mode = InteractMode.LINE_BUILDER
         elif (name == "cube_builder_button"):
             self.interact_mode = InteractMode.CUBE_BUILDER
+        elif (name == "pick_sel_button"):
+            self.interact_mode = InteractMode.SELECT_MODE
+        elif (name == "pick_drag_button"):
+            self.interact_mode = InteractMode.DRAG_MODE
 
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / \
@@ -1256,6 +1355,10 @@ class XRwidget(QOpenGLWidget):
             self.interact_line_builder()
         elif self.interact_mode == InteractMode.CUBE_BUILDER:
             self.interact_cube_builder()
+        elif self.interact_mode == InteractMode.SELECT_MODE:
+            self.interact_select_mode()
+        elif self.interact_mode == InteractMode.DRAG_MODE:
+            self.interact_drag_mode()
 
         if pref.pref_updated:
             self.read_preferences()

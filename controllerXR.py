@@ -73,7 +73,6 @@ class xrController:
         if ray:
             self.ray_node = SoSwitch()
             self.add_picking_ray()
-            self.update_ray_axis()
         else:
             self.ray_node = None
         self.picked_tail = None
@@ -114,11 +113,11 @@ class xrController:
         self.ray_vtxs.vertex.set1Value(1, 0, 0, 1)
         ray_line = SoLineSet()
         ray_line.vertexProperty = self.ray_vtxs
-        ray_color = SoBaseColor()
-        ray_color.rgb = SbColor(1, 0, 0)
+        self.ray_color = SoBaseColor()
+        self.make_ray_red()
         # required since SoSwitch behaves like a node not like a separator
         ray_sep = SoSeparator()
-        ray_sep.addChild(ray_color)
+        ray_sep.addChild(self.ray_color)
         ray_sep.addChild(ray_line)
         self.sph_trans = SoTranslation()
         self.sph_trans.translation.setValue(0, 0, 0)
@@ -129,6 +128,12 @@ class xrController:
         self.sph_node.addChild(ray_sph)
         ray_sep.addChild(self.sph_node)
         self.ray_node.addChild(ray_sep)
+
+    def make_ray_red(self):
+        self.ray_color.rgb = SbColor(1, 0, 0)
+
+    def make_ray_green(self):
+        self.ray_color.rgb = SbColor(0, 1, 0)
 
     def get_controller_scenegraph(self):
         return self.controller_node
@@ -155,16 +160,10 @@ class xrController:
         self.con_transform.copyFieldValues(con_worldtransform)
         self.con_transform.center.setValue(SbVec3f(0, 0, 0))
 
-    def update_ray_axis(self):
-        gqx = self.con_transform.rotation.getValue().getValue()[0]
-        gqy = self.con_transform.rotation.getValue().getValue()[1]
-        gqz = self.con_transform.rotation.getValue().getValue()[2]
-        gqw = self.con_transform.rotation.getValue().getValue()[3]
-
-        gmat02 = 2 * gqx * gqz + 2 * gqy * gqw
-        gmat12 = 2 * gqy * gqz - 2 * gqx * gqw
-        gmat22 = 1 - 2 * gqx * gqx - 2 * gqy * gqy
-        self.ray_axis = SbVec3f(gmat02, gmat12, gmat22)
+    def find_ray_axis(self):
+        rot = self.con_transform.rotation.getValue()
+        ray_axis = rot.multVec(SbVec3f(0, 0, 1))
+        return ray_axis
 
     def show_ray(self):
         if (self.ray_node):
@@ -173,6 +172,21 @@ class xrController:
     def hide_ray(self):
         if (self.ray_node):
             self.ray_node.whichChild = SO_SWITCH_NONE
+
+    # this is used if the ray should show point calculated elsewhere
+    # if there is no point it will show just ray, without sphere at the end
+    def show_ray_ext(self, end_vec=None):
+        if (self.ray_node):
+            self.ray_node.whichChild = SO_SWITCH_ALL
+            ray_axis = self.find_ray_axis()
+            ray_start_vec = self.con_transform.translation.getValue()
+            ray_end_vec = self.con_transform.translation.getValue() - ray_axis
+            if (end_vec):
+                self.sph_node.whichChild = SO_SWITCH_ALL
+                ray_end_vec = end_vec
+            self.sph_trans.translation.setValue(ray_end_vec)
+            self.ray_vtxs.vertex.set1Value(0, ray_start_vec)
+            self.ray_vtxs.vertex.set1Value(1, ray_end_vec)
 
     def show_controller(self):
         self.controller_node.whichChild = SO_SWITCH_ALL
@@ -186,15 +200,15 @@ class xrController:
             vp_reg,
             near_plane,
             far_plane):
-        self.update_ray_axis()
+        ray_axis = self.find_ray_axis()
         ray_start_vec = self.con_transform.translation.getValue()
-        ray_end_vec = self.con_transform.translation.getValue() - self.ray_axis
+        ray_end_vec = self.con_transform.translation.getValue() - ray_axis
 
         # picking ray
         con_pick_action = SoRayPickAction(vp_reg)
         # direction is reversed controller Z axis
         con_pick_action.setRay(
-            ray_start_vec, -self.ray_axis, near_plane, far_plane)
+            ray_start_vec, -ray_axis, near_plane, far_plane)
 
         self.ray_vtxs.vertex.set1Value(0, ray_start_vec)
         self.ray_vtxs.vertex.set1Value(1, ray_end_vec)

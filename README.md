@@ -77,6 +77,9 @@ If motion controllers are unavailable, a keyboard can be used.
 
 Depending on platform, the mirror window may or may not need to be shown and focused (click into to focus) to catch keys.
 
+## Dragging objects
+Dragging objects with the motion controller ray is available since 15.12.2024 (39642) FreeCAD Weekly Build.
+
 ## Known issues:
 
 Wayland/EGL support not implemented yet.

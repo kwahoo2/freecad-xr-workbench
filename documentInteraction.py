@@ -22,13 +22,24 @@
 # ***************************************************************************
 
 import FreeCAD as App
+import FreeCADGui as Gui
 import Part
+
+from pivy.coin import SbVec3f
 
 ppair = [App.Vector(), App.Vector()]
 
+# last picked object dict
+curr_sel = None
+# last selected object
+curr_obj = None
+sel_pnt = App.Vector()
+obj_plac_at_sel = App.Placement()
+con_plac_at_sel = App.Placement()
+
 line_cnt = 0
 cube_cnt = 0
-end_pnt = App.Vector(0, 0, 0)
+end_pnt = App.Vector()
 # distance in mm where a point will be snapped to the last point
 eps = 30.0
 
@@ -40,7 +51,7 @@ def add_line_start(cpnt):
     line_cnt = line_cnt + 1
     doc.addObject("Part::Line", line_name)
     line = doc.getObject(line_name)
-    pnt = coint_to_doc_pnt(cpnt)
+    pnt = coin_to_doc_pnt(cpnt)
     # if a new point is close to old one, use the old location
     # useful for further conversion in polyline
     if (pnt.distanceToPoint(end_pnt) < eps):
@@ -60,7 +71,7 @@ def move_line_end(cpnt):
     global end_pnt
     line_name = 'Line' + str(line_cnt - 1)
     line = doc.getObject(line_name)
-    pnt = coint_to_doc_pnt(cpnt)
+    pnt = coin_to_doc_pnt(cpnt)
     end_pnt = pnt
     line.X2 = pnt.x
     line.Y2 = pnt.y
@@ -100,6 +111,64 @@ def resize_cube(transf):
         cube.Height = lz if lz > 0 else 1
 
 
+def select_object(transform, view):
+    doc = App.ActiveDocument
+    rot = transform.rotation.getValue()
+    ray_axis = rot.multVec(SbVec3f(0, 0, 1))
+    vec_start = coin_to_doc_pnt(transform.translation.getValue())
+    vec_dir = coin_to_doc_pnt(-ray_axis)
+    # Document objects picking, Base::Vector is needed, not SbVec3f
+    info = view.getObjectInfoRay(vec_start, vec_dir)
+    if (info):
+        sect_pt = info['PickedPoint']
+        Gui.Selection.addSelection(
+            info['Document'],
+            info['Object'],
+            info['Component'],
+            sect_pt.x,
+            sect_pt.y,
+            sect_pt.z)
+        global curr_sel, curr_obj, sel_pnt
+        global con_plac_at_sel, obj_plac_at_sel
+        curr_sel = info
+        curr_obj = doc.getObject(info['Object'])
+        sel_pnt = sect_pt
+        con_plac_at_sel = coin_to_doc_placement(transform)
+        obj_plac_at_sel = curr_obj.Placement
+        print("XR selection: ", info)
+
+
+def clear_selection():
+    Gui.Selection.clearSelection()
+    global curr_sel, curr_obj
+    curr_obj = None
+    curr_sel = None
+
+
+def drag_object(transform):
+    con_plac = coin_to_doc_placement(transform)
+    old_obj_plac = obj_plac_at_sel
+    old_con_plac = con_plac_at_sel
+    # calculating transformation between two controller poses
+    plt_con = con_plac * old_con_plac.inverse()
+    # calculate the selected obj new placement
+    obj_plac = plt_con * old_obj_plac
+    if (curr_obj):
+        curr_obj.Placement = obj_plac
+    # calculate the selection point new location
+    s_pnt = plt_con * sel_pnt
+    return s_pnt
+
+
+def get_sel_sbvec():
+    sb_vec = None
+    if (curr_sel):
+        if (curr_sel['PickedPoint']):
+            vec = curr_sel['PickedPoint']
+            sb_vec = doc_to_coin_pnt(vec)
+    return sb_vec
+
+
 def coin_to_doc_placement(transf):
     coin_pos = transf.translation.getValue()
     pos = App.Vector(
@@ -115,12 +184,16 @@ def coin_to_doc_placement(transf):
     return App.Placement(pos, rot)
 
 
-def coint_to_doc_pnt(cpnt):
+def coin_to_doc_pnt(cpnt):
     pnt = App.Vector(
         cpnt.getValue()[0],
         cpnt.getValue()[1],
         cpnt.getValue()[2])
     return pnt
+
+
+def doc_to_coin_pnt(dpnt):
+    return SbVec3f(dpnt.x, dpnt.y, dpnt.z)
 
 
 def recompute():

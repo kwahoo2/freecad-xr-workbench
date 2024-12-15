@@ -207,17 +207,20 @@ class coinMenu:
         self.widget_list.append(self.rot_speed_slider)
 
         # buttons in radio group 2
-        self.teleport_mode_button = buttonWidget("teleport_mode_button", "Teleport Mode", 2, 0.2)
+        self.teleport_mode_button = buttonWidget(
+            "teleport_mode_button", "Teleport Mode", 2, 0.2)
         self.teleport_mode_button.set_location(
             SbVec3f(0.25, 0.1, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.teleport_mode_button)
 
-        self.line_builder_button = buttonWidget("line_builder_button", "Line Builder", 2, 0.2)
+        self.line_builder_button = buttonWidget(
+            "line_builder_button", "Line Builder", 2, 0.2)
         self.line_builder_button.set_location(
             SbVec3f(0.25, 0.05, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.line_builder_button)
 
-        self.cube_builder_button = buttonWidget("cube_builder_button", "Cube Builder", 2, 0.2)
+        self.cube_builder_button = buttonWidget(
+            "cube_builder_button", "Cube Builder", 2, 0.2)
         self.cube_builder_button.set_location(
             SbVec3f(0.25, 0, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.cube_builder_button)
@@ -275,3 +278,20 @@ class coinMenu:
             widget.select(True)
         elif isinstance(widget, sliderWidget):
             widget.set_value(value)
+
+    def add_picking_buttons(self):
+        # these buttons are used to select picking and dragging object modes with a ray
+        # radio group 2
+        self.pick_sel_button = buttonWidget(
+            "pick_sel_button", "Selection Mode", 2, 0.2)
+        self.pick_sel_button.set_location(
+            SbVec3f(0.25, -0.05, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.pick_sel_button)
+        self.menu_node.addChild(self.pick_sel_button.get_scenegraph())
+
+        self.pick_drag_button = buttonWidget(
+            "pick_drag_button", "Dragging Mode", 2, 0.2)
+        self.pick_drag_button.set_location(
+            SbVec3f(0.25, -0.1, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.pick_drag_button)
+        self.menu_node.addChild(self.pick_drag_button.get_scenegraph())
