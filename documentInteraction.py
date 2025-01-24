@@ -24,6 +24,7 @@
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+import UtilsAssembly
 
 from pivy.coin import SbVec3f
 
@@ -33,8 +34,10 @@ ppair = [App.Vector(), App.Vector()]
 curr_sel = None
 # last selected object
 curr_obj = None
+curr_draggable_obj = None
 sel_pnt = App.Vector()
 obj_plac_at_sel = App.Placement()
+draggable_obj_plac_at_sel = App.Placement()
 con_plac_at_sel = App.Placement()
 
 line_cnt = 0
@@ -128,33 +131,73 @@ def select_object(transform, view):
             sect_pt.x,
             sect_pt.y,
             sect_pt.z)
-        global curr_sel, curr_obj, sel_pnt
-        global con_plac_at_sel, obj_plac_at_sel
+        global curr_sel, curr_obj, sel_pnt, curr_draggable_obj
+        global con_plac_at_sel, obj_plac_at_sel, draggable_obj_plac_at_sel
         curr_sel = info
         curr_obj = doc.getObject(info['Object'])
         sel_pnt = sect_pt
         con_plac_at_sel = coin_to_doc_placement(transform)
-        obj_plac_at_sel = curr_obj.Placement
+        if hasattr(curr_obj, 'Placement'):
+            obj_plac_at_sel = curr_obj.Placement
         print("XR selection: ", info)
+        # find object that can be used for dragging (the highest level object
+        # (could be Part, Body...), except AssemblyObject)
+        parent = ''
+        if 'ParentObject' in info:
+            parent = info['ParentObject']
+        p_obj = doc.getObject(parent)
+        sub_n = ''
+        if 'SubName' in info:
+            sub_n = info['SubName']
+        sub_obj = sub_n.split(".")
+        if p_obj:
+            if p_obj.TypeId == 'Assembly::AssemblyObject':
+                # find the first non-assembly object
+                for s in sub_obj:
+                    o = doc.getObject(s)
+                    if o:
+                        if o.TypeId != 'Assembly::AssemblyObject' and hasattr(
+                                o, 'Placement'):
+                            curr_draggable_obj = o
+                            draggable_obj_plac_at_sel = o.Placement
+                            return
+            else:
+                if hasattr(o, 'Placement'):
+                    curr_draggable_obj = p_obj
+                    draggable_obj_plac_at_sel = p_obj.Placement
+                else:
+                    for s in sub_obj:
+                        o = doc.getObject(s)
+                        if o:
+                            if hasattr(o, 'Placement'):
+                                curr_draggable_obj = o
+                                draggable_obj_plac_at_sel = o.Placement
+                                return
+        elif hasattr(curr_obj, 'Placement'):
+            curr_draggable_obj = curr_obj
+            draggable_obj_plac_at_sel = curr_obj.Placement
 
 
 def clear_selection():
     Gui.Selection.clearSelection()
-    global curr_sel, curr_obj
+    global curr_sel, curr_obj, curr_draggable_obj
     curr_obj = None
     curr_sel = None
+    curr_draggable_obj = None
 
 
 def drag_object(transform):
     con_plac = coin_to_doc_placement(transform)
-    old_obj_plac = obj_plac_at_sel
+    old_obj_plac = draggable_obj_plac_at_sel
     old_con_plac = con_plac_at_sel
     # calculating transformation between two controller poses
     plt_con = con_plac * old_con_plac.inverse()
     # calculate the selected obj new placement
-    obj_plac = plt_con * old_obj_plac
-    if (curr_obj):
-        curr_obj.Placement = obj_plac
+    draggable_obj_plac = plt_con * old_obj_plac
+    if (curr_draggable_obj):
+        curr_draggable_obj.Placement = draggable_obj_plac
+        if UtilsAssembly.activeAssembly():
+            UtilsAssembly.activeAssembly().solve()
     # calculate the selection point new location
     s_pnt = plt_con * sel_pnt
     return s_pnt
