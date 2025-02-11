@@ -74,6 +74,7 @@ If motion controllers are unavailable, a keyboard can be used.
 | U/O              | Roll            |
 | I/K              | Forward/Backward|
 | J/L              | Left/Right      |
+| PageUp/PageDown  | Up/Down         |
 
 Depending on platform, the mirror window may or may not need to be shown and focused (click into to focus) to catch keys.
 

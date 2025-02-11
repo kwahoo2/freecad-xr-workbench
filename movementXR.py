@@ -35,6 +35,7 @@ from PySide.QtCore import Qt
 class KeyboardMovement:
     walk: float = 0.0  # forward - backward
     sidestep: float = 0.0  # left - right
+    altitude: float = 0.0 # up - down
     xrot: float = 0.0  # pitch
     yrot: float = 0.0  # yaw
     zrot: float = 0.0  # roll
@@ -135,7 +136,7 @@ class xrMovement:
 
     def transf_keyboard(self, hmdrot, mov_speed, rot_speed):
         # hmdrot is SbRotation, not SoRotation node
-        # movement direction follows HMD orientatoion
+        # movement direction follows HMD orientation
         transf_kb = SoTransform()
         rot_x = SbRotation(hmdrot.multVec(SbVec3f(1, 0, 0)), self.key_mov.xrot)
         rot_y = SbRotation(hmdrot.multVec(SbVec3f(0, 1, 0)), self.key_mov.yrot)
@@ -145,7 +146,7 @@ class xrMovement:
         rot.scaleAngle(rot_speed)
         transf_kb.rotation.setValue(rot)
 
-        trsl = SbVec3f(self.key_mov.sidestep, 0, self.key_mov.walk)
+        trsl = SbVec3f(self.key_mov.sidestep, self.key_mov.altitude, self.key_mov.walk)
         trsl_transf = hmdrot.multVec(-trsl * mov_speed)
         transf_kb.translation.setValue(trsl_transf)
         return transf_kb
@@ -195,6 +196,10 @@ class xrMovement:
             self.key_mov.sidestep = -1.0
         if (key == Qt.Key_J):
             self.key_mov.sidestep = 1.0
+        if (key == Qt.Key_PageUp):
+            self.key_mov.altitude = -1.0
+        if (key == Qt.Key_PageDown):
+            self.key_mov.altitude = 1.0
 
     def key_released(self, key):
         if (key == Qt.Key_Left or Qt.Key_Right):
@@ -207,6 +212,8 @@ class xrMovement:
             self.key_mov.walk = 0
         if (key == Qt.Key_L or key == Qt.Key_J):
             self.key_mov.sidestep = 0
+        if (key == Qt.Key_PageDown or key == Qt.Key_PageUp):
+            self.key_mov.altitude = 0
 
     def reset_rot_axis(self, rot, axis):
         # resets rotation to given axis
