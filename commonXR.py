@@ -27,6 +27,7 @@ import preferences as pref
 import controllerXR as conXR
 import movementXR as movXR
 import menuCoin
+import previewCoin as prCoin
 import documentInteraction as docInter
 from math import tan, pi
 import FreeCADGui as Gui
@@ -402,6 +403,7 @@ class XRwidget(QOpenGLWidget):
         self.doc_xr_transform.rotation.setValue(
             SbRotation(SbVec3f(1, 0, 0), -pi / 2))
         self.sg = SoSeparator()  # placeholder for scenegraph
+        self.geo_prev = prCoin.coinPreview() # geometry preview
         # store complete transformation of world, including artificial movement
         self.world_transform = SoTransform()
         self.world_separator = SoSeparator()
@@ -428,6 +430,9 @@ class XRwidget(QOpenGLWidget):
                 self.con_menu.get_menu_scenegraph())
             # add world (scene without controllers and gui elements)
             self.sgrp[eye_index].addChild(self.world_separator)
+            # add geometry preview objects
+            self.sgrp[eye_index].addChild(
+                self.geo_prev.get_scenegraph())
 
     def setup_controllers(self):
         # initialise scenegraphs for controllers
@@ -1159,8 +1164,8 @@ class XRwidget(QOpenGLWidget):
         transform.multRight(inv)
         return transform
 
-    def get_doc_sbvec(self, vec):
-        # XR to FreeCAD point location transformation
+    def get_xr_sbvec(self, vec):
+        # FreeCAD to XR point location transformation
         vec_xr = None
         if (vec):
             mat = SbMatrix()
@@ -1170,27 +1175,37 @@ class XRwidget(QOpenGLWidget):
             vec_xr = mat_t.multMatrixVec(vec)
         return vec_xr
 
-    # the function creates a line with controller trigger
-    # press trigger to start drawing,
-    # move controller with trigger pressed where the end is expected
-    # release trigger to finish drawing
+    def get_doc_sbvec(self, vec):
+        # XR to FreeCAD point location transformation
+        vec_doc = None
+        if (vec):
+            mat = SbMatrix()
+            inv = SbMatrix()
+            self.doc_xr_transform.getTranslationSpaceMatrix(mat, inv)
+            mat_t = inv.transpose()
+            vec_doc = mat_t.multMatrixVec(vec)
+        return vec_doc
+
+    # the function creates a polyline with controller trigger
+    # press trigger to set point
+    # press another controller (the menu one) trigger to finish editing
     def interact_line_builder(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
-        con.hide_ray()
+        # con.hide_ray()
+        far_plane = 1.0 # how far picking should happen - prevent background objects picking
+        coin_picked_point, p_coords = con.find_picked_coin_object(
+                self.world_separator, self.vp_reg, self.near_plane, far_plane)
+        if coin_picked_point:
+            point_coords = SbVec3f(p_coords)
+        else:
+            point_coords = con.show_ray_ext()
         if (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.JUST_PRESSED):
-            transform = self.get_doc_transf(con.get_local_transf())
-            point = transform.translation.getValue()
-            docInter.add_line_start(point)
-        elif (con.get_buttons_states().grab_ev ==
-                conXR.AnInpEv.PRESSED):
-            transform = self.get_doc_transf(con.get_local_transf())
-            point = transform.translation.getValue()
-            docInter.move_line_end(point)
-        elif (con.get_buttons_states().grab_ev ==
-                conXR.AnInpEv.JUST_RELEASED):
-            docInter.recompute()
+            self.geo_prev.add_polyline_node(point_coords)
+            docInter.add_polyline_point(self.get_doc_sbvec(point_coords))
+        else:
+            self.geo_prev.move_last_polyline_node(point_coords)
 
     # this function creates a cube with controller trigger
     # press trigger to create a cube
@@ -1223,7 +1238,7 @@ class XRwidget(QOpenGLWidget):
             docInter.select_object(transform, self.view)
             # point location have to be transformed from Base::Vector to SbVec3f
             # then transformed from XR coordinates to doc coordinates
-            i_sec = self.get_doc_sbvec(docInter.get_sel_sbvec())
+            i_sec = self.get_xr_sbvec(docInter.get_sel_sbvec())
             if (i_sec):
                 con.make_ray_green()
                 con.show_ray_ext(i_sec)
@@ -1251,7 +1266,7 @@ class XRwidget(QOpenGLWidget):
             transform = self.get_doc_transf(con.get_local_transf())
             docInter.clear_selection()
             docInter.select_object(transform, self.view)
-            i_sec = self.get_doc_sbvec(docInter.get_sel_sbvec())
+            i_sec = self.get_xr_sbvec(docInter.get_sel_sbvec())
             if (i_sec):
                 con.make_ray_green()
                 con.show_ray_ext(i_sec)
@@ -1262,7 +1277,7 @@ class XRwidget(QOpenGLWidget):
             i_sec_xr = docInter.doc_to_coin_pnt(
                 docInter.drag_object(transform))
             # transform to doc coordinates
-            i_sec = self.get_doc_sbvec(i_sec_xr)
+            i_sec = self.get_xr_sbvec(i_sec_xr)
             con.show_ray_ext(i_sec)
         elif (con.get_buttons_states().grab_ev ==
               conXR.AnInpEv.RELEASED):
@@ -1292,6 +1307,10 @@ class XRwidget(QOpenGLWidget):
                 self.hide_menu_timer.stop()
                 self.con_menu.show_menu()
                 con.show_ray()
+                # when the menu is invoked, current document interaction
+                # like drawing something is accepted and finished
+                self.geo_prev.clean_preview()
+                docInter.finish_editing()
             # if pressed
             elif (con.get_buttons_states().grab_ev ==
                   conXR.AnInpEv.PRESSED):
@@ -1344,8 +1363,10 @@ class XRwidget(QOpenGLWidget):
             self.interact_mode = InteractMode.TELEPORT
         elif (name == "line_builder_button"):
             self.interact_mode = InteractMode.LINE_BUILDER
+            docInter.set_mode(docInter.EditMode.LINE_BUILDER)
         elif (name == "cube_builder_button"):
             self.interact_mode = InteractMode.CUBE_BUILDER
+            docInter.set_mode(docInter.EditMode.CUBE_BUILDER)
         elif (name == "pick_sel_button"):
             self.interact_mode = InteractMode.SELECT_MODE
         elif (name == "pick_drag_button"):

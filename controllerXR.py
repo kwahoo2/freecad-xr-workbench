@@ -176,17 +176,19 @@ class xrController:
     # this is used if the ray should show point calculated elsewhere
     # if there is no point it will show just ray, without sphere at the end
     def show_ray_ext(self, end_vec=None):
-        if (self.ray_node):
-            self.ray_node.whichChild = SO_SWITCH_ALL
-            ray_axis = self.find_ray_axis()
-            ray_start_vec = self.con_transform.translation.getValue()
-            ray_end_vec = self.con_transform.translation.getValue() - ray_axis
-            if (end_vec):
-                self.sph_node.whichChild = SO_SWITCH_ALL
-                ray_end_vec = end_vec
-            self.sph_trans.translation.setValue(ray_end_vec)
-            self.ray_vtxs.vertex.set1Value(0, ray_start_vec)
-            self.ray_vtxs.vertex.set1Value(1, ray_end_vec)
+        if not (self.ray_node):
+            return SbVec3f(0, 0, 0)
+        self.ray_node.whichChild = SO_SWITCH_ALL
+        ray_axis = self.find_ray_axis()
+        ray_start_vec = self.con_transform.translation.getValue()
+        ray_end_vec = self.con_transform.translation.getValue() - ray_axis
+        if (end_vec):
+            self.sph_node.whichChild = SO_SWITCH_ALL
+            ray_end_vec = end_vec
+        self.sph_trans.translation.setValue(ray_end_vec)
+        self.ray_vtxs.vertex.set1Value(0, ray_start_vec)
+        self.ray_vtxs.vertex.set1Value(1, ray_end_vec)
+        return ray_end_vec
 
     def show_controller(self):
         self.controller_node.whichChild = SO_SWITCH_ALL

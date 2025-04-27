@@ -24,11 +24,22 @@
 import FreeCAD as App
 import FreeCADGui as Gui
 import Part
+import Draft
 import UtilsAssembly
 
+from enum import Enum
 from pivy.coin import SbVec3f
 
-ppair = [App.Vector(), App.Vector()]
+
+class EditMode(Enum):
+    NONE = 0
+    LINE_BUILDER = 1
+    CUBE_BUILDER = 2
+
+
+edit_mode = EditMode.NONE
+
+polyline_points = []
 
 # last picked object dict
 curr_sel = None
@@ -40,45 +51,58 @@ obj_plac_at_sel = App.Placement()
 draggable_obj_plac_at_sel = App.Placement()
 con_plac_at_sel = App.Placement()
 
-line_cnt = 0
+polyline_cnt = 0
 cube_cnt = 0
-end_pnt = App.Vector()
-# distance in mm where a point will be snapped to the last point
+# distance in mm where a point will be snapped to the first point of the
+# polyline
 eps = 30.0
 
 
-def add_line_start(cpnt):
+def set_mode(mode):
+    global edit_mode
+    edit_mode = mode
+    print("Edit mode:", edit_mode)
+
+
+def finish_editing():
+    if (edit_mode == EditMode.LINE_BUILDER):
+        add_polyline()
+        global polyline_points
+        polyline_points = []
+
+
+def add_polyline():
+    if (len(polyline_points) < 2):
+        return
     doc = App.ActiveDocument
-    global line_cnt
-    line_name = 'Line' + str(line_cnt)
-    line_cnt = line_cnt + 1
-    doc.addObject("Part::Line", line_name)
-    line = doc.getObject(line_name)
-    pnt = coin_to_doc_pnt(cpnt)
-    # if a new point is close to old one, use the old location
-    # useful for further conversion in polyline
-    if (pnt.distanceToPoint(end_pnt) < eps):
-        pnt = end_pnt
-    line.X1 = pnt.x
-    line.Y1 = pnt.y
-    line.Z1 = pnt.z
-    line.Placement = App.Placement(App.Vector(0, 0, 0),
-                                   App.Rotation(App.Vector(0, 0, 1), 0))
-    line.Label = line_name
+    global polyline_cnt
+    if (len(polyline_points) == 2):
+        polyline_name = 'Line' + str(polyline_cnt)
+    else:
+        polyline_name = 'Polyline' + str(polyline_cnt)
+    polyline_cnt = polyline_cnt + 1
+    start_point = polyline_points[0]
+    end_point = polyline_points[-1]
+    # if a new point is close to starting point of the polyline, use the staring point location
+    # useful for closing the polyline
+    is_closed = False
+    if (end_point.distanceToPoint(start_point) < eps):
+        polyline_points[-1] = start_point
+        is_closed = True
+    polyline = Draft.make_wire(
+        polyline_points,
+        closed=is_closed,
+        face=is_closed)
+    polyline.Label = polyline_name
     doc.recompute()
 
 
-def move_line_end(cpnt):
-    doc = App.ActiveDocument
-    global line_cnt
-    global end_pnt
-    line_name = 'Line' + str(line_cnt - 1)
-    line = doc.getObject(line_name)
+def add_polyline_point(cpnt):
+    # converion to document coordinates
     pnt = coin_to_doc_pnt(cpnt)
-    end_pnt = pnt
-    line.X2 = pnt.x
-    line.Y2 = pnt.y
-    line.Z2 = pnt.z
+    global polyline_points
+    polyline_points.append(pnt)
+    print("Polyline point added", pnt, len(polyline_points))
 
 
 def add_cube(transf):
