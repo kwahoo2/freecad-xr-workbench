@@ -40,6 +40,7 @@ from pivy.coin import SoCamera
 from pivy.coin import SbVec3f
 from pivy.coin import SbMatrix
 from pivy.coin import SoFrustumCamera
+from pivy.coin import SoOrthographicCamera
 from pivy.coin import SbViewportRegion
 from pivy.coin import SoSceneManager
 from pivy.coin import SbColor
@@ -375,6 +376,19 @@ class XRwidget(QOpenGLWidget):
         for eye_index in range(2):
             self.camera[eye_index].viewportMapping.setValue(
                 SoCamera.LEAVE_ALONE)
+            self.camera[eye_index].near_plane = self.near_plane
+            self.camera[eye_index].arr_plane = self.far_plane
+        # Since Coin3D SoRayPickAction setRay cannot use a radius, picking points
+        # and lines is almost impossible - user cannot aim so precisely.
+        # As as workaround, additional camera is used, with its placement
+        # resembling placement of the ray. And then viewport space setPoint() is used.
+        # setPoint() can use value set by setRadius()
+        self.pick_camera = SoOrthographicCamera()
+        self.pick_camera.near_plane = self.near_plane
+        self.pick_camera.far_plane = self.far_plane
+        self.pick_camera.height = 0.1
+        # default picking radius is 5, and vp region size is equal to the picking diameter
+        self.pick_vp_reg = SbViewportRegion(10, 10)
 
     def setup_scene(self):
         # coin3d setup
@@ -412,6 +426,7 @@ class XRwidget(QOpenGLWidget):
         self.cgrp = [SoGroup(), SoGroup()]  # group for camera
         self.sgrp = [SoGroup(), SoGroup()]  # group for scenegraph
         self.root_scene = [SoSeparator(), SoSeparator()]
+        self.cam_picking_root = SoSeparator()
         for eye_index in range(2):
             self.root_scene[eye_index].ref()
             self.root_scene[eye_index].addChild(self.cgrp[eye_index])
@@ -433,6 +448,12 @@ class XRwidget(QOpenGLWidget):
             # add geometry preview objects
             self.sgrp[eye_index].addChild(
                 self.geo_prev.get_scenegraph())
+        self.cam_picking_root.ref()
+        self.cam_picking_root.addChild(self.pick_camera)
+        self.cam_picking_root.addChild(self.world_separator)
+        self.cam_picking_root.addChild(
+                self.geo_prev.get_scenegraph())
+
 
     def setup_controllers(self):
         # initialise scenegraphs for controllers
@@ -1195,7 +1216,8 @@ class XRwidget(QOpenGLWidget):
         # con.hide_ray()
         far_plane = 1.0 # how far picking should happen - prevent background objects picking
         coin_picked_point, p_coords = con.find_picked_coin_object(
-                self.world_separator, self.vp_reg, self.near_plane, far_plane)
+                self.cam_picking_root, self.pick_vp_reg, self.near_plane, far_plane,
+                self.pick_camera)
         if coin_picked_point:
             point_coords = SbVec3f(p_coords)
         else:
@@ -1597,6 +1619,7 @@ class XRwidget(QOpenGLWidget):
             self.instance = None
         for i, rs in enumerate(self.root_scene):
             self.root_scene[i].unref()
+        self.cam_picking_root.unref()
         self.doneCurrent()
         self.deleteLater()
         print("XR terminated")

@@ -55,7 +55,7 @@ polyline_cnt = 0
 cube_cnt = 0
 # distance in mm where a point will be snapped to the first point of the
 # polyline
-eps = 30.0
+eps = 1.0
 
 
 def set_mode(mode):
@@ -72,10 +72,11 @@ def finish_editing():
 
 
 def add_polyline():
+    global polyline_cnt
+    global polyline_points
     if (len(polyline_points) < 2):
         return
     doc = App.ActiveDocument
-    global polyline_cnt
     if (len(polyline_points) == 2):
         polyline_name = 'Line' + str(polyline_cnt)
     else:
@@ -89,6 +90,7 @@ def add_polyline():
     if (end_point.distanceToPoint(start_point) < eps):
         polyline_points[-1] = start_point
         is_closed = True
+    polyline_points =  adjust_coplanarity(polyline_points)
     polyline = Draft.make_wire(
         polyline_points,
         closed=is_closed,
@@ -98,7 +100,7 @@ def add_polyline():
 
 
 def add_polyline_point(cpnt):
-    # converion to document coordinates
+    # conversion to document coordinates
     pnt = coin_to_doc_pnt(cpnt)
     global polyline_points
     polyline_points.append(pnt)
@@ -265,3 +267,29 @@ def doc_to_coin_pnt(dpnt):
 
 def recompute():
     App.ActiveDocument.recompute()
+
+
+# this method adjusts points that are very close to be coplanar to be coplanar
+# useful for making faces from more than 3 points
+def adjust_coplanarity(points, eps_dist=0.5):
+    if len(points) < 4:
+        return points
+
+    adjusted_points = points[:3]  # first 3 points define the plane
+    v1 = points[1] - points[0]
+    v2 = points[2] - points[0]
+    normal = v1.cross(v2)
+    normal.normalize()
+
+    for point in points[3:]:
+        vector = point - points[0]
+        distance = vector.dot(normal)
+        if abs(distance) < eps_dist:
+            adjusted_point = point - normal * distance
+            adjusted_points.append(adjusted_point)
+            print ("Point:", point, "adjusted to:", adjusted_point)
+        else:
+            adjusted_points.append(point)
+
+    return adjusted_points
+

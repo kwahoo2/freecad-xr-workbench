@@ -22,7 +22,7 @@
 # ***************************************************************************
 
 from pivy.coin import SoSeparator
-from pivy.coin import SoVertexProperty, SoLineSet
+from pivy.coin import SoVertexProperty, SoLineSet, SoPointSet
 from pivy.coin import SoSwitch, SoPickStyle, SO_SWITCH_NONE, SO_SWITCH_ALL
 
 
@@ -30,14 +30,15 @@ class coinPreview:
     def __init__(self):
         self.prev_sep = SoSwitch()
         self.prev_sep.whichChild = SO_SWITCH_NONE
+
         # one separator containts objects that can be picked (for snap)
         # other one unpickable objects, only for visualisation
-
+        # we decide here to not snap to line we are drawing, just to
+        # points at the ends of the finished lines
         self.not_pick_sep = SoSeparator()
         unpickable = SoPickStyle()
         unpickable.style = SoPickStyle.UNPICKABLE
         self.not_pick_sep.addChild(unpickable)
-
         self.pline_vtxs = SoVertexProperty()
         self.polyline = SoLineSet()
         self.pline_vtxs.vertex.set1Value(0, 0, 0, 0)
@@ -45,7 +46,18 @@ class coinPreview:
         self.polyline.vertexProperty = self.pline_vtxs
         self.not_pick_sep.addChild(self.polyline)
 
+        self.pick_sep = SoSeparator()
+        pickable = SoPickStyle()
+        pickable.style = SoPickStyle.SHAPE
+        self.pick_sep.addChild(pickable)
+        self.pnt_vtxs = SoVertexProperty()
+        self.pnts = SoPointSet()
+        self.pnt_vtxs.vertex.set1Value(0, 0, 0, 0)
+        self.pnts.vertexProperty = self.pnt_vtxs
+        self.pick_sep.addChild(self.pnts)
+
         self.prev_sep.addChild(self.not_pick_sep)
+        self.prev_sep.addChild(self.pick_sep)
 
         self.point_counter = 0
 
@@ -56,17 +68,20 @@ class coinPreview:
         self.prev_sep.whichChild = SO_SWITCH_NONE
         self.pline_vtxs.vertex.deleteValues(
             2)  # do not delete 2 first vertices
+        self.pnt_vtxs.vertex.deleteValues(1)
         self.point_counter = 0
 
     def add_polyline(self, vec):
         self.pline_vtxs.vertex.set1Value(0, vec)
         self.pline_vtxs.vertex.set1Value(1, vec)
+        self.pnt_vtxs.vertex.set1Value(0, vec)
         self.point_counter = 2
         self.prev_sep.whichChild = SO_SWITCH_ALL
 
     def add_polyline_node(self, vec):
         if self.point_counter:
             self.pline_vtxs.vertex.set1Value(self.point_counter, vec)
+            self.pnt_vtxs.vertex.set1Value(self.point_counter - 1, vec)
             self.point_counter += 1
         else:
             self.add_polyline(vec)

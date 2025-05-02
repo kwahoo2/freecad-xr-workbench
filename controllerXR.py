@@ -201,16 +201,25 @@ class xrController:
             separator,
             vp_reg,
             near_plane,
-            far_plane):
+            far_plane,
+            camera = None):
         ray_axis = self.find_ray_axis()
         ray_start_vec = self.con_transform.translation.getValue()
         ray_end_vec = self.con_transform.translation.getValue() - ray_axis
 
         # picking ray
         con_pick_action = SoRayPickAction(vp_reg)
-        # direction is reversed controller Z axis
-        con_pick_action.setRay(
-            ray_start_vec, -ray_axis, near_plane, far_plane)
+        if (camera):
+            camera.position.setValue(ray_start_vec)
+            camera.pointAt(ray_end_vec)
+            camera.nearDistance = near_plane
+            camera.farDistance = far_plane
+            # pixel in the middle of the viewport region
+            con_pick_action.setPoint(vp_reg.getWindowSize() / 2)
+        else:
+            # direction is reversed controller Z axis
+            con_pick_action.setRay(
+                ray_start_vec, -ray_axis, near_plane, far_plane)
 
         self.ray_vtxs.vertex.set1Value(0, ray_start_vec)
         self.ray_vtxs.vertex.set1Value(1, ray_end_vec)
