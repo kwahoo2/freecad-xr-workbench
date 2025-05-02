@@ -90,8 +90,8 @@ Wayland/EGL support not implemented yet.
 Linux specific:
 
 SteamVR performance can be abysmal, it is often much better with Monado.
-However, running Monado with libsurvive using multiple Lighthouses can cause bad tracking.
-Fortunately, there is a way to combine the best of both world - use Monado with SteamVR tracking:
+Monado with libsurvive works well, including two Lighthouses setup.
+In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 
 `STEAMVR_LH_ENABLE=true monado-service`
 
