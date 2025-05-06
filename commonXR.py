@@ -219,6 +219,10 @@ class DockWidget(QDockWidget):
         mw.mainWindowClosed.connect(self.close)
         if not pref.preferences().GetBool("MirrorEnable", False):
             # hide after some rendering is done
+            self.setFloating(True)
+            # move the widget in the corner of the main window
+            self.move(mw.size().width(), mw.size().height())
+            self.showMinimized()
             QTimer.singleShot(3000, self.hide_mirror)
 
     def closeEvent(self, event):
@@ -234,7 +238,8 @@ class DockWidget(QDockWidget):
 
     def unhide_mirror(self):
         self.xr_widget.enable_mirror()
-        self.show()
+        self.setFloating(False)
+        self.showNormal()
 
     def reload_scenegraph(self):
         self.xr_widget.read_preferences()
@@ -1566,9 +1571,11 @@ class XRwidget(QOpenGLWidget):
                     GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.window_fb)
 
                 self.end_xr_frame()
-                self.doneCurrent()
         if self.mirror_window:
-            self.update()
+            # we do not use self.update(), but explicit widget repaint here
+            self.paintGL()
+            self.doneCurrent()
+            self.repaint()
 
     def paintGL(self):
         w, h = self.render_target_size
