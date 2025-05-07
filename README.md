@@ -87,6 +87,10 @@ Wayland/EGL support not implemented yet.
 
 ## Tips and tricks:
 
+SteamVR:
+
+SteamVR checks the proximity sensor in the HMD, so the user must wear the HMD fully to enable rendering. Only if the head is detected the runtime will return XR_SESSION_STATE_FOCUSED required for rendering. The sensor is located in the middle of the HMD, between (slightly above) the lenses in most HMDs.
+
 Linux specific:
 
 SteamVR performance can be abysmal, it is often much better with Monado.
