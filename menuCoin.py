@@ -156,6 +156,43 @@ class sliderWidget:
     def get_widget_tail(self):
         return self.back_shape
 
+class labelWidget:
+    def __init__(self, name="", text="", width=0.08):
+        self.name = name
+        self.label_sep = SoSeparator()
+        self.relativ_loc = SoTransform()
+        self.label_sep.addChild(self.relativ_loc)
+
+        # everything after this will be not pickable
+        # useful for excluding the label label from picking
+        unpickable = SoPickStyle()
+        unpickable.style = SoPickStyle.UNPICKABLE
+        self.label_sep.addChild(unpickable)
+        text_rel_pos = SoTranslation()
+        text_rel_pos.translation.setValue(SbVec3f(-0.4 * width, -0.007, 0.01))
+        self.label = SoText3()
+        text_scale = SoScale()
+        text_scale.scaleFactor.setValue(SbVec3f(0.002, 0.002, 0.002))
+        text_color = SoBaseColor()
+        text_color.rgb = SbColor(0, 0.2, 0)
+        self.label_sep.addChild(text_color)
+        self.label.string = text
+        self.label_sep.addChild(text_scale)
+        self.label_sep.addChild(self.label)
+
+    def set_location(self, pos, rot):
+        self.relativ_loc.translation = pos
+        self.relativ_loc.rotation = rot
+
+    def set_text(self, text):
+        self.label.string = text
+
+    def get_scenegraph(self):
+        return self.label_sep
+
+    def get_widget_tail(self):
+        return None # not required, since it is never picked
+
 
 class coinMenu:
     def __init__(self, visible=False):
@@ -175,6 +212,67 @@ class coinMenu:
         light.direction.setValue(-1, -1, -1)
         light.intensity.setValue(0.5)
         self.menu_node.addChild(light)
+
+    def update_location(self, pos, rot):
+        self.location.translation = pos
+        self.location.rotation = rot
+
+    def get_menu_scenegraph(self):
+        return self.menu_sep
+
+    def show_menu(self):
+        self.menu_node.whichChild = SO_SWITCH_ALL
+
+    def hide_menu(self):
+        self.menu_node.whichChild = SO_SWITCH_NONE
+
+    def is_hidden(self):
+        if (self.menu_node.whichChild.getValue() == SO_SWITCH_NONE):
+            return True
+        else:
+            return False
+
+    def find_picked_widget(self, tail, coords):
+        widget = None
+        for w in self.widget_list:
+            if (w.get_widget_tail() == tail):
+                widget = w
+        if isinstance(widget, buttonWidget):
+            # buttons can be grouped in radio button groups
+            # then all buttons have to be deselected except the picked one
+            # radio group 0 means that button is independent
+            radio_group = widget.radio_group
+            if radio_group > 0:
+                for w in self.widget_list:
+                    if isinstance(w, buttonWidget):
+                        if (w.radio_group == radio_group):
+                            w.select(False)
+            widget.select(True)
+        elif isinstance(widget, sliderWidget):
+            # u texture value is used as slider value
+            widget.set_value(coords[0])
+        return widget
+
+    def select_widget_by_name(self, name, value=0):
+        widget = None
+        for w in self.widget_list:
+            if (w.name == name):
+                widget = w
+        if isinstance(widget, buttonWidget):
+            radio_group = widget.radio_group
+            if radio_group > 0:
+                for w in self.widget_list:
+                    if isinstance(w, buttonWidget):
+                        if (w.radio_group == radio_group):
+                            w.select(False)
+            widget.select(True)
+        elif isinstance(widget, sliderWidget):
+            widget.set_value(value)
+
+# this is the main menu
+class mainCoinMenu(coinMenu):
+    def __init__(self, visible=False):
+        super().__init__(visible)
 
         # buttons in radio group 1
         self.free_mov_button = buttonWidget("free_mov_button", "Free", 1)
@@ -237,56 +335,6 @@ class coinMenu:
         for w in self.widget_list:
             self.menu_node.addChild(w.get_scenegraph())
 
-    def update_location(self, pos, rot):
-        self.location.translation = pos
-        self.location.rotation = rot
-
-    def get_menu_scenegraph(self):
-        return self.menu_sep
-
-    def show_menu(self):
-        self.menu_node.whichChild = SO_SWITCH_ALL
-
-    def hide_menu(self):
-        self.menu_node.whichChild = SO_SWITCH_NONE
-
-    def find_picked_widget(self, tail, coords):
-        widget = None
-        for w in self.widget_list:
-            if (w.get_widget_tail() == tail):
-                widget = w
-        if isinstance(widget, buttonWidget):
-            # buttons can be grouped in radio button groups
-            # then all buttons have to be deselected except the picked one
-            # radio group 0 means that button is independent
-            radio_group = widget.radio_group
-            if radio_group > 0:
-                for w in self.widget_list:
-                    if isinstance(w, buttonWidget):
-                        if (w.radio_group == radio_group):
-                            w.select(False)
-            widget.select(True)
-        elif isinstance(widget, sliderWidget):
-            # u texture value is used as slider value
-            widget.set_value(coords[0])
-        return widget
-
-    def select_widget_by_name(self, name, value=0):
-        widget = None
-        for w in self.widget_list:
-            if (w.name == name):
-                widget = w
-        if isinstance(widget, buttonWidget):
-            radio_group = widget.radio_group
-            if radio_group > 0:
-                for w in self.widget_list:
-                    if isinstance(w, buttonWidget):
-                        if (w.radio_group == radio_group):
-                            w.select(False)
-            widget.select(True)
-        elif isinstance(widget, sliderWidget):
-            widget.set_value(value)
-
     def add_picking_buttons(self):
         # these buttons are used to select picking and dragging object modes with a ray
         # radio group 2
@@ -303,3 +351,46 @@ class coinMenu:
             SbVec3f(0.25, -0.1, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.pick_drag_button)
         self.menu_node.addChild(self.pick_drag_button.get_scenegraph())
+
+# this is menu for editing objects
+class editCoinMenu(coinMenu):
+    def __init__(self, visible=False):
+        super().__init__(visible)
+
+        self.del_obj_button = buttonWidget("del_obj_button", "Delete object", 0, 0.2)
+        # set location relative to menu location
+        self.del_obj_button.set_location(
+            SbVec3f(-0.05, 0.1, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.del_obj_button)
+
+        self.new_body_button = buttonWidget("new_body_button", "Create a body", 0, 0.2)
+        self.new_body_button.set_location(
+            SbVec3f(0.45, 0.1, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.new_body_button)
+
+        self.close_button = buttonWidget("close_button", "Close menu", 0, 0.2)
+        self.close_button.set_location(
+            SbVec3f(-0.05, 0.2, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.close_button)
+
+        # buttons in radio group 1
+        self.pad_button = buttonWidget("pad_button", "Pad", 1)
+        self.pad_button.set_location(
+            SbVec3f(0.15, 0.1, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.pad_button)
+
+        self.pocket_button = buttonWidget("pocket_button", "Pocket", 1)
+        self.pocket_button.set_location(
+            SbVec3f(0.25, 0.1, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.pocket_button)
+
+        self.label = labelWidget("label", "Pocket", 0.2)
+        self.label.set_location(
+            SbVec3f(-0.05, 0.3, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.label)
+
+        for w in self.widget_list:
+            self.menu_node.addChild(w.get_scenegraph())
+
+    def update_label(self, text):
+        self.label.set_text(text)

@@ -445,9 +445,11 @@ class XRwidget(QOpenGLWidget):
                 if self.xr_con[hand].get_ray_scenegraph():
                     self.sgrp[eye_index].addChild(
                         self.xr_con[hand].get_ray_scenegraph())  # ray for controller
-            # add menu
+            # add menus
             self.sgrp[eye_index].addChild(
                 self.con_menu.get_menu_scenegraph())
+            self.sgrp[eye_index].addChild(
+                self.edit_menu.get_menu_scenegraph())
             # add world (scene without controllers and gui elements)
             self.sgrp[eye_index].addChild(self.world_separator)
             # add geometry preview objects
@@ -477,7 +479,8 @@ class XRwidget(QOpenGLWidget):
 
     def setup_menus(self):
         # initialize menus floating in the 3D view
-        self.con_menu = menuCoin.coinMenu()
+        self.con_menu = menuCoin.mainCoinMenu()
+        self.edit_menu = menuCoin.editCoinMenu()
         self.hide_menu_timer = QTimer()
         self.hide_menu_timer.setSingleShot(True)
         QObject.connect(
@@ -1255,32 +1258,71 @@ class XRwidget(QOpenGLWidget):
             docInter.recompute()
 
     # this function selects a FreeCAD model (document object)
+    # also opens a menu with avaiable actions
     def interact_select_mode(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
-        if (con.get_buttons_states().grab_ev ==
+        transform = self.get_doc_transf(con.get_local_transf())
+        con.show_ray()
+        # traverse menu scenegraph
+        menu_picked_point, menu_picked_p_coords = con.find_picked_coin_object(
+            self.edit_menu.get_menu_scenegraph(), self.vp_reg, self.near_plane, self.far_plane)
+        if (self.edit_menu.is_hidden()
+        or not docInter.has_obj()):
+            # if menu is invisible assume that user finished the last job
+            # and wants to select the new object for editing
+            if (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.JUST_PRESSED):
-            transform = self.get_doc_transf(con.get_local_transf())
-            docInter.clear_selection()
-            docInter.select_object(transform, self.view)
-            # point location have to be transformed from Base::Vector to SbVec3f
-            # then transformed from XR coordinates to doc coordinates
-            i_sec = self.get_xr_sbvec(docInter.get_sel_sbvec())
-            if (i_sec):
-                con.make_ray_green()
-                con.show_ray_ext(i_sec)
+                docInter.clear_selection()
+                docInter.select_object(transform, self.view)
+                # point location have to be transformed from Base::Vector to SbVec3f
+                # then transformed from XR coordinates to doc coordinates
+                i_sec = docInter.get_sel_sbvec()
+                i_sec_xr = self.get_xr_sbvec(i_sec)
+                if i_sec_xr:
+                    con.make_ray_green()
+                    con.show_ray_ext(i_sec_xr)
+                    # the newly showed menu should be aligned to the selected object
+                    pos = con.get_global_transf().translation
+                    rot = con.get_global_transf().rotation
+                    self.edit_menu.update_label(docInter.get_selection_label())
+                    self.edit_menu.update_location(pos, rot)
+                    self.edit_menu.show_menu()
+        else:
+            if (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_PRESSED):
+                if not menu_picked_point:
+                    # start editing only if the menu wasn't accidentally hit
+                    docInter.set_start_edit(transform, self.view)
+            elif (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.PRESSED):
+                if not menu_picked_point:
+                    i_sec = docInter.doc_to_coin_pnt(
+                        docInter.update_edit_transf(transform))
+                    # shows the ray with length set during selection
+                    if i_sec:
+                        i_sec_xr = self.get_xr_sbvec(i_sec)
+                        con.show_ray_ext(i_sec_xr)
+        if (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_RELEASED):
+            if menu_picked_point:
+                tail = con.get_picked_tail()
+                coords = con.get_picked_tex_coords()
+                widget = self.edit_menu.find_picked_widget(tail, coords)
+                self.process_edit_selection(widget)
+            else:
+                docInter.set_finish_edit()
         elif (con.get_buttons_states().grab_ev ==
-              conXR.AnInpEv.RELEASED):
-            # shows the ray all the time
+            conXR.AnInpEv.RELEASED):
             con.make_ray_red()
-            con.show_ray()
-            # traverse just to update the ray view
-            # should be less expensive than using getObjectInfoRay
-            con.find_picked_coin_object(
-                self.world_separator,
-                self.vp_reg,
-                self.near_plane,
-                self.far_plane)
+            # if there is no intersetion with menu, check the scene scnegraph
+            if not menu_picked_point:
+                con.find_picked_coin_object(
+                    self.world_separator,
+                    self.vp_reg,
+                    self.near_plane,
+                    self.far_plane)
+
 
     # this function selects, then drags a FreeCAD model
     # press trigger to select object
@@ -1293,19 +1335,19 @@ class XRwidget(QOpenGLWidget):
             transform = self.get_doc_transf(con.get_local_transf())
             docInter.clear_selection()
             docInter.select_object(transform, self.view)
-            i_sec = self.get_xr_sbvec(docInter.get_sel_sbvec())
-            if (i_sec):
+            i_sec_xr = self.get_xr_sbvec(docInter.get_sel_sbvec())
+            if (i_sec_xr):
                 con.make_ray_green()
-                con.show_ray_ext(i_sec)
+                con.show_ray_ext(i_sec_xr)
         elif (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.PRESSED):
             transform = self.get_doc_transf(con.get_local_transf())
             # function returns where ray-object  intersection point should be
-            i_sec_xr = docInter.doc_to_coin_pnt(
+            i_sec = docInter.doc_to_coin_pnt(
                 docInter.drag_object(transform))
-            # transform to doc coordinates
-            i_sec = self.get_xr_sbvec(i_sec_xr)
-            con.show_ray_ext(i_sec)
+            # transform to XR coordinates
+            i_sec_xr = self.get_xr_sbvec(i_sec)
+            con.show_ray_ext(i_sec_xr)
         elif (con.get_buttons_states().grab_ev ==
               conXR.AnInpEv.RELEASED):
             con.make_ray_red()
@@ -1337,7 +1379,7 @@ class XRwidget(QOpenGLWidget):
                 # when the menu is invoked, current document interaction
                 # like drawing something is accepted and finished
                 self.geo_prev.clean_preview()
-                docInter.finish_editing()
+                docInter.finish_building()
             # if pressed
             elif (con.get_buttons_states().grab_ev ==
                   conXR.AnInpEv.PRESSED):
@@ -1390,14 +1432,31 @@ class XRwidget(QOpenGLWidget):
             self.interact_mode = InteractMode.TELEPORT
         elif (name == "line_builder_button"):
             self.interact_mode = InteractMode.LINE_BUILDER
-            docInter.set_mode(docInter.EditMode.LINE_BUILDER)
+            docInter.set_mode(docInter.BuilderMode.LINE_BUILDER)
         elif (name == "cube_builder_button"):
             self.interact_mode = InteractMode.CUBE_BUILDER
-            docInter.set_mode(docInter.EditMode.CUBE_BUILDER)
+            docInter.set_mode(docInter.BuilderMode.CUBE_BUILDER)
         elif (name == "pick_sel_button"):
             self.interact_mode = InteractMode.SELECT_MODE
         elif (name == "pick_drag_button"):
             self.interact_mode = InteractMode.DRAG_MODE
+
+    def process_edit_selection(self, widget):
+        if widget == None:
+            return
+        name = widget.name
+        if (name == "close_button"):
+            self.edit_menu.hide_menu()
+            self.edit_menu.close_button.select(False)
+        elif (name == "del_obj_button"):
+            docInter.delete_sel_obj()
+            self.edit_menu.del_obj_button.select(False) # button not toggleable
+        elif (name == "new_body_button"):
+            docInter.create_body()
+        elif (name == "pad_button"):
+            docInter.create_pad()
+        elif (name == "pocket_button"):
+            docInter.create_pocket()
 
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / \

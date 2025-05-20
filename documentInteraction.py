@@ -28,16 +28,17 @@ import Draft
 import UtilsAssembly
 
 from enum import Enum
-from pivy.coin import SbVec3f
+import math
+from pivy.coin import SbVec3f, SbRotation
 
 
-class EditMode(Enum):
+class BuilderMode(Enum):
     NONE = 0
     LINE_BUILDER = 1
     CUBE_BUILDER = 2
 
 
-edit_mode = EditMode.NONE
+builder_mode = BuilderMode.NONE
 
 polyline_points = []
 
@@ -46,7 +47,7 @@ curr_sel = None
 # last selected object
 curr_obj = None
 curr_draggable_obj = None
-sel_pnt = App.Vector()
+sel_pnt = App.Vector() # selection point
 obj_plac_at_sel = App.Placement()
 draggable_obj_plac_at_sel = App.Placement()
 con_plac_at_sel = App.Placement()
@@ -59,13 +60,13 @@ eps = 1.0
 
 
 def set_mode(mode):
-    global edit_mode
-    edit_mode = mode
-    print("Edit mode:", edit_mode)
+    global builder_mode
+    builder_mode = mode
+    print("Edit mode:", builder_mode)
 
 
-def finish_editing():
-    if (edit_mode == EditMode.LINE_BUILDER):
+def finish_building():
+    if (builder_mode == BuilderMode.LINE_BUILDER):
         add_polyline()
         global polyline_points
         polyline_points = []
@@ -90,13 +91,13 @@ def add_polyline():
     if (end_point.distanceToPoint(start_point) < eps):
         polyline_points[-1] = start_point
         is_closed = True
-    polyline_points =  adjust_coplanarity(polyline_points)
+    polyline_points = adjust_coplanarity(polyline_points)
     polyline = Draft.make_wire(
         polyline_points,
         closed=is_closed,
         face=is_closed)
     polyline.Label = polyline_name
-    doc.recompute()
+    recompute()
 
 
 def add_polyline_point(cpnt):
@@ -114,7 +115,7 @@ def add_cube(transf):
     cube_cnt = cube_cnt + 1
     doc.addObject("Part::Box", cube_name)
     doc.getObject(cube_name).Placement = coin_to_doc_placement(transf)
-    doc.recompute()
+    recompute()
 
 
 def resize_cube(transf):
@@ -188,7 +189,7 @@ def select_object(transform, view):
                             draggable_obj_plac_at_sel = o.Placement
                             return
             else:
-                if hasattr(o, 'Placement'):
+                if hasattr(p_obj, 'Placement'):
                     curr_draggable_obj = p_obj
                     draggable_obj_plac_at_sel = p_obj.Placement
                 else:
@@ -211,6 +212,18 @@ def clear_selection():
     curr_sel = None
     curr_draggable_obj = None
 
+def get_selection_label():
+    s = ""
+    sub = ""
+    selection = Gui.Selection.getSelectionEx()
+    if len(selection):
+        obj = selection[0].Object
+        if obj:
+            subs = selection[0].SubElementNames
+            if len(subs):
+                sub = subs[0]
+            s = "Sel: "+ obj.Name + ", " + sub
+    return s
 
 def drag_object(transform):
     con_plac = coin_to_doc_placement(transform)
@@ -228,6 +241,23 @@ def drag_object(transform):
     s_pnt = plt_con * sel_pnt
     return s_pnt
 
+# finds normal of the face in the selection point
+def find_normal_sel():
+    selection = Gui.Selection.getSelectionEx()
+    obj = selection[0].Object
+    subs = selection[0].SubElementNames
+    if not len(subs):
+        return None
+    sub = subs[0]
+    if sub.startswith('Face'):
+        face_index = int(sub.split('Face')[1])
+        # FreeCAD face index starts at 1
+        face = obj.Shape.Faces[face_index - 1]
+        u, v = face.Surface.parameter(sel_pnt)
+        normal = face.normalAt(u, v)
+        return normal
+    else:
+        return None
 
 def get_sel_sbvec():
     sb_vec = None
@@ -262,8 +292,17 @@ def coin_to_doc_pnt(cpnt):
 
 
 def doc_to_coin_pnt(dpnt):
+    if not dpnt:
+        return None
     return SbVec3f(dpnt.x, dpnt.y, dpnt.z)
 
+
+def doc_to_coin_rot(drot):
+    if not drot:
+        return None
+    q = drot.Q
+    rot = SbRotation(q[0], q[1], q[2], q[3])
+    return rot
 
 def recompute():
     App.ActiveDocument.recompute()
@@ -287,9 +326,232 @@ def adjust_coplanarity(points, eps_dist=0.5):
         if abs(distance) < eps_dist:
             adjusted_point = point - normal * distance
             adjusted_points.append(adjusted_point)
-            print ("Point:", point, "adjusted to:", adjusted_point)
+            print("Point:", point, "adjusted to:", adjusted_point)
         else:
             adjusted_points.append(point)
 
     return adjusted_points
 
+
+# Tools avaialble in the edit menu below
+
+class EditMode(Enum):
+    NONE = 0
+    PAD = 1
+    POCKET = 2
+
+
+edit_mode = EditMode.NONE
+
+initial_edit_plac = App.Placement()
+
+last_body_used = ""
+curr_feature_obj = None
+edit_sel_pnt = None
+edit_started = False
+
+
+def update_edit_transf(transform):
+    if not edit_sel_pnt:
+        return
+    con_plac = coin_to_doc_placement(transform)
+    old_con_plac = initial_edit_plac
+    # calculating transformation between two controller poses
+    plt_con = con_plac * old_con_plac.inverse()
+    # update original selection point location with controller transformation
+    s_pnt = plt_con * edit_sel_pnt
+
+    length = 0
+    normal = find_normal_sel()
+    if normal:
+        # we assume the feature is extended in normal direction to selection
+        length = s_pnt.distanceToPlane(edit_sel_pnt, normal)
+    else:
+        return
+    if edit_mode == EditMode.PAD:
+        if not curr_feature_obj:
+            return
+        if not curr_feature_obj.TypeId == 'PartDesign::Pad':
+            return
+    elif edit_mode == EditMode.POCKET:
+        if not curr_feature_obj:
+            return
+        if not curr_feature_obj.TypeId == 'PartDesign::Pocket':
+            return
+    if (edit_mode == EditMode.PAD
+            or edit_mode == EditMode.POCKET):
+        curr_feature_obj.UseCustomVector = True
+        # otherwise custom vector would produce wrong length in reality (?)
+        curr_feature_obj.AlongSketchNormal = False
+        curr_feature_obj.Length = abs(length)
+        curr_feature_obj.Direction = normal
+        if length > 0:
+            curr_feature_obj.Reversed = False
+        else:
+            curr_feature_obj.Reversed = True
+        recompute()
+
+    return s_pnt
+
+
+def set_start_edit(transform, view):
+    doc = App.ActiveDocument
+    rot = transform.rotation.getValue()
+    ray_axis = rot.multVec(SbVec3f(0, 0, 1))
+    vec_start = coin_to_doc_pnt(transform.translation.getValue())
+    vec_dir = coin_to_doc_pnt(-ray_axis)
+    # Document objects picking, Base::Vector is needed, not SbVec3f
+    info = view.getObjectInfoRay(vec_start, vec_dir)
+    global edit_sel_pnt
+    edit_sel_pnt = None
+    if (info):
+        edit_sel_pnt = info['PickedPoint']
+    else:
+        return
+    global initial_edit_plac
+    initial_edit_plac = coin_to_doc_placement(transform)
+    global curr_feature_obj, curr_obj
+    selection = Gui.Selection.getSelectionEx()
+    curr_obj = selection[0].Object
+    if not curr_obj:
+        return
+    curr_feature_obj = None
+    sub_objs =  ['',]
+    if (curr_obj.TypeId == 'PartDesign::Pad'
+        or curr_obj.TypeId == 'PartDesign::Pocket'):
+        subs = selection[0].SubElementNames
+        if len(subs):
+            sub_objs = [subs[0],]
+    if edit_mode == EditMode.PAD:
+        body = find_add_body()
+        if not curr_obj: # asking again, since adding obj to the Body might fail
+            return
+        curr_feature_obj = body.newObject('PartDesign::Pad', 'Pad')
+        curr_feature_obj.Profile = (curr_obj, sub_objs)
+        curr_obj.Visibility = False
+    elif edit_mode == EditMode.POCKET:
+        # subtractive feature cannot be first, so don't allow Body creation
+        body = find_body()
+        if not curr_obj:
+            return
+        curr_feature_obj = body.newObject('PartDesign::Pocket', 'Pocket')
+        curr_feature_obj.Profile = (curr_obj, sub_objs)
+        curr_obj.Visibility = False
+    global edit_started
+    edit_started = True
+
+
+def set_finish_edit():
+    global edit_started
+    if edit_started:
+        if (edit_mode == EditMode.PAD
+                or edit_mode == EditMode.POCKET):
+            edit_sel_pnt = None
+            recompute()
+        edit_started = False
+        global curr_feature_obj, curr_obj
+        curr_obj = None
+        curr_feature_obj = None
+
+
+def create_pad():
+    global edit_mode
+    edit_mode = EditMode.PAD
+
+
+def create_pocket():
+    global edit_mode
+    edit_mode = EditMode.POCKET
+
+
+def create_body():
+    doc = App.ActiveDocument
+    body = doc.addObject("PartDesign::Body", "Body")
+    Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
+    global last_body_used
+    last_body_used = body.Name
+
+
+def activate_last_body():
+    doc = App.ActiveDocument
+    body = doc.getObject(last_body_used)
+    if body:
+        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
+    return body
+
+
+def delete_sel_obj():
+    selection = Gui.Selection.getSelectionEx()
+    if len(selection):
+        obj = selection[0].Object
+        doc = App.ActiveDocument
+        print("Deleting object:", obj.Name)
+        doc.removeObject(obj.Name)
+
+# This checks if an object belongs to a body.
+# If not, it add the object to the last selected body.
+# If no body exists it created one (note this does not search for all
+# bodies, just uses last one created in session).
+
+
+def find_add_body():
+    global last_body_used
+    global curr_obj
+    if curr_obj:
+        obj = curr_obj
+        doc = App.ActiveDocument
+    else:
+        return None
+    body = find_body()
+    if not body:
+        body = doc.addObject('PartDesign::Body', 'Body')
+        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
+        try:
+            body.addObject(obj)
+        except Exception as e: # some objects, like Part objs cannot be added directly
+            print ("Adding:", obj, "to a Body not implemented yet")
+            curr_obj = None
+        last_body_used = body.Name
+    return body
+
+
+def find_body():
+    global curr_obj
+    if curr_obj:
+        obj = curr_obj
+        doc = App.ActiveDocument
+    else:
+        return None
+    parent = obj.getParentGeoFeatureGroup()
+    if parent and parent.TypeId == 'PartDesign::Body':
+        return parent
+    else:
+        body = activate_last_body()
+        if body:
+            try:
+                body.addObject(obj)
+            except Exception as e:
+                print ("Adding:", obj, "to a Body not implemented yet")
+                curr_obj = None
+            return body
+        else:
+            return None
+
+
+# subtractive features require some solid to sutract from
+
+
+def is_body_solid(body):
+    if not body:
+        return False
+    try:
+        if body.Shape.isValid() and body.Shape.Solids:
+            return True
+        else:
+            return False
+    except Part.OCCError:
+        return False
+
+
+def has_obj():
+    return curr_obj
