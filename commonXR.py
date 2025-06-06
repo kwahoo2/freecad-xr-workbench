@@ -200,6 +200,7 @@ class InteractMode(Enum):
     CUBE_BUILDER = 3
     SELECT_MODE = 4
     DRAG_MODE = 5
+    WORKING_PLANE = 6
 
 
 class DockWidget(QDockWidget):
@@ -1358,6 +1359,33 @@ class XRwidget(QOpenGLWidget):
                 self.near_plane,
                 self.far_plane)
 
+    def interact_working_plane(self):
+        # working plane implementation
+        # puts a plane tangent (normal) to surface at selected point
+        hand = self.secondary_con
+        con = self.xr_con[hand]
+        con.make_ray_red()
+        if con.get_ray_scenegraph():
+            if (con.get_buttons_states().grab_ev ==
+                  conXR.AnInpEv.PRESSED):
+                con.show_ray()
+                # we do not want to pick the old plane while setting the new one location
+                self.geo_prev.make_plane_pickable(False)
+                far_plane = 1.0 # overwrite how far picking should happen
+                coin_picked_point, p_coords = con.find_picked_coin_object(
+                    self.world_separator, self.vp_reg, self.near_plane, far_plane)
+                if coin_picked_point:
+                    point_coords = SbVec3f(p_coords)
+                    rot = SbRotation(con.get_rotation_from_picked_normal())
+                else:
+                    point_coords = con.show_ray_ext()
+                    rot = con.get_global_transf().rotation
+                self.geo_prev.update_working_plane(point_coords, rot)
+            elif (con.get_buttons_states().grab_ev ==
+                  conXR.AnInpEv.RELEASED):
+                con.hide_ray()
+                self.geo_prev.make_plane_pickable(True)
+
     def check_menu_selection(self):
         # menu implementation, hidden by default, shows if trigger pressed
         hand = self.primary_con
@@ -1430,6 +1458,12 @@ class XRwidget(QOpenGLWidget):
             self.doc_xr_transform.scaleFactor.setValue(sf, sf, sf)
         elif (name == "teleport_mode_button"):
             self.interact_mode = InteractMode.TELEPORT
+        elif (name == "working_plane_button"):
+            self.interact_mode = InteractMode.WORKING_PLANE
+            self.geo_prev.show_working_plane()
+        elif (name == "toggle_plane_button"):
+            self.geo_prev.toggle_working_plane()
+            self.con_menu.toggle_plane_button.select(False)
         elif (name == "line_builder_button"):
             self.interact_mode = InteractMode.LINE_BUILDER
             docInter.set_mode(docInter.BuilderMode.LINE_BUILDER)
@@ -1474,6 +1508,8 @@ class XRwidget(QOpenGLWidget):
             self.interact_select_mode()
         elif self.interact_mode == InteractMode.DRAG_MODE:
             self.interact_drag_mode()
+        elif self.interact_mode == InteractMode.WORKING_PLANE:
+            self.interact_working_plane()
 
         if pref.pref_updated:
             self.read_preferences()

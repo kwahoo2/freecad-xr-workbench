@@ -77,6 +77,7 @@ class xrController:
             self.ray_node = None
         self.picked_tail = None
         self.picked_tex_coords = SbVec4f(0, 0, 0, 0)
+        self.picked_normal = SbVec3f(0.0, 0.0, 0.0)
         self.add_controller_shape()
 
     def add_controller_shape(self):
@@ -235,6 +236,7 @@ class xrController:
             self.ray_vtxs.vertex.set1Value(1, picked_p_coords)
             self.picked_tail = picked_point.getPath().getTail()
             self.picked_tex_coords = picked_point.getTextureCoords()
+            self.picked_normal = picked_point.getNormal()
         else:
             # show the sphere only if an object is pickable
             self.sph_node.whichChild = SO_SWITCH_NONE
@@ -247,6 +249,15 @@ class xrController:
 
     def get_picked_tex_coords(self):
         return self.picked_tex_coords.getValue()
+
+    def get_picked_normal(self):
+        return self.picked_normal.getValue()
+
+    def get_rotation_from_picked_normal(self):
+        normal = self.picked_normal
+        # SbRotation (from, to)
+        rot = SbRotation(SbVec3f(0, 0, 1), normal) # default for SbRotation axis is (0.0, 0.0, 1.0)
+        return rot.getValue()
 
     def update_lever(self, x_lever_value, y_lever_value):
         self.buttons_state.lever_x = x_lever_value.current_state

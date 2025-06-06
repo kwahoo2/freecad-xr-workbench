@@ -331,6 +331,19 @@ class mainCoinMenu(coinMenu):
             SbVec3f(0.25, 0, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.cube_builder_button)
 
+        self.working_plane_button = buttonWidget(
+            "working_plane_button", "Working Plane", 2, 0.2)
+        self.working_plane_button.set_location(
+            SbVec3f(0.5, 0.05, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.working_plane_button)
+
+        # no radio group
+        self.toggle_plane_button = buttonWidget(
+            "toggle_plane_button", "Toggle Plane", 0, 0.2)
+        self.toggle_plane_button.set_location(
+            SbVec3f(0.5, 0.0, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.toggle_plane_button)
+
         # add Coin3D representation of every widget
         for w in self.widget_list:
             self.menu_node.addChild(w.get_scenegraph())
