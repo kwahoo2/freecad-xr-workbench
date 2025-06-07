@@ -62,7 +62,7 @@ eps = 1.0
 def set_mode(mode):
     global builder_mode
     builder_mode = mode
-    print("Edit mode:", builder_mode)
+    print("Builder mode:", builder_mode)
 
 
 def finish_building():
@@ -333,7 +333,7 @@ def adjust_coplanarity(points, eps_dist=0.5):
     return adjusted_points
 
 
-# Tools avaialble in the edit menu below
+# Tools available in the edit menu below
 
 class EditMode(Enum):
     NONE = 0
@@ -381,7 +381,8 @@ def update_edit_transf(transform):
     if (edit_mode == EditMode.PAD
             or edit_mode == EditMode.POCKET):
         curr_feature_obj.UseCustomVector = True
-        # otherwise custom vector would produce wrong length in reality (?)
+        # otherwise custom vector would produce wrong length in reality
+        # this will not be necessary if the placement of the face is aligned with its vertices
         curr_feature_obj.AlongSketchNormal = False
         curr_feature_obj.Length = abs(length)
         curr_feature_obj.Direction = normal
@@ -443,12 +444,14 @@ def set_start_edit(transform, view):
 
 def set_finish_edit():
     global edit_started
+    global edit_mode
     if edit_started:
         if (edit_mode == EditMode.PAD
                 or edit_mode == EditMode.POCKET):
             edit_sel_pnt = None
             recompute()
         edit_started = False
+        edit_mode = EditMode.NONE
         global curr_feature_obj, curr_obj
         curr_obj = None
         curr_feature_obj = None
@@ -509,8 +512,9 @@ def find_add_body():
         try:
             body.addObject(obj)
         except Exception as e: # some objects, like Part objs cannot be added directly
-            print ("Adding:", obj, "to a Body not implemented yet")
-            curr_obj = None
+            obj.adjustRelativeLinks(body)
+            body.ViewObject.dropObject(obj,None,'',[])
+            clear_selection()
         last_body_used = body.Name
     return body
 
@@ -531,8 +535,9 @@ def find_body():
             try:
                 body.addObject(obj)
             except Exception as e:
-                print ("Adding:", obj, "to a Body not implemented yet")
-                curr_obj = None
+                obj.adjustRelativeLinks(body)
+                body.ViewObject.dropObject(obj,None,'',[])
+                clear_selection()
             return body
         else:
             return None

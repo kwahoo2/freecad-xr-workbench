@@ -1312,11 +1312,15 @@ class XRwidget(QOpenGLWidget):
                 widget = self.edit_menu.find_picked_widget(tail, coords)
                 self.process_edit_selection(widget)
             else:
+                # after finisheing the editing, the user has to select an object again
+                # and select the edit mode again - this should reduce confusion about active mode
                 docInter.set_finish_edit()
+                self.edit_menu.deselect_all_buttons()
+                self.edit_menu.hide_menu()
         elif (con.get_buttons_states().grab_ev ==
             conXR.AnInpEv.RELEASED):
             con.make_ray_red()
-            # if there is no intersetion with menu, check the scene scnegraph
+            # if there is no intersection with menu, check the scene scenegraph
             if not menu_picked_point:
                 con.find_picked_coin_object(
                     self.world_separator,
@@ -1487,6 +1491,7 @@ class XRwidget(QOpenGLWidget):
             self.edit_menu.del_obj_button.select(False) # button not toggleable
         elif (name == "new_body_button"):
             docInter.create_body()
+            self.edit_menu.new_body_button.select(False)
         elif (name == "pad_button"):
             docInter.create_pad()
         elif (name == "pocket_button"):

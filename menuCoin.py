@@ -269,6 +269,11 @@ class coinMenu:
         elif isinstance(widget, sliderWidget):
             widget.set_value(value)
 
+    def deselect_all_buttons(self):
+        for w in self.widget_list:
+            if isinstance(w, buttonWidget):
+                w.select(False)
+
 # this is the main menu
 class mainCoinMenu(coinMenu):
     def __init__(self, visible=False):
