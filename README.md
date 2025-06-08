@@ -13,9 +13,9 @@ More in [Extending Workbench](doc/Extending_Workbench.md).
 
 ### Software Dependencies
 
-* FreeCAD 0.20 or later
+* FreeCAD 0.20 or later, some features require FreeCAD 1.1 (dev)
 * Python 3.11+
-* an OpenXR Runtime, it can be selected manually with:
+* an OpenXR Runtime (eg. SteamVR 2.11.2 or later, Monado), it can be selected manually with:
 
 `XR_RUNTIME_JSON=json_file_placement FreeCAD_executable`
 
@@ -24,6 +24,8 @@ an example:
 `XR_RUNTIME_JSON=/usr/local/share/openxr/1/openxr_monado.json ./FreeCAD_1.0.0-conda-Linux-x86_64-py311.AppImage`
 
 Note: the OpenXR has to support [XR_KHR_opengl_enable](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_opengl_enable.html) extension. Known runtimes that support this extension include SteamVR and Monado.
+
+
 
 #### Python libraries
 
@@ -78,8 +80,10 @@ If motion controllers are unavailable, a keyboard can be used.
 
 Depending on platform, the mirror window may or may not need to be shown and focused (click into to focus) to catch keys.
 
-## Dragging objects
-Dragging objects with the motion controller ray is available since 15.12.2024 (39642) FreeCAD Weekly Build.
+## Dragging objects and modelling tools
+Dragging objects with the motion controller ray is available since 15.12.2024 (39642) FreeCAD 1.1 (dev) Weekly Build.
+
+This version is also required for modelling tools like a [Pad or Pocket.](https://youtu.be/BlZWMUpZ5mU)
 
 ## Known issues:
 
@@ -93,7 +97,6 @@ SteamVR checks the proximity sensor in the HMD, so the user must wear the HMD fu
 
 Linux specific:
 
-SteamVR performance can be abysmal, it is often much better with Monado.
 Monado with libsurvive works well, including two Lighthouses setup.
 In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 

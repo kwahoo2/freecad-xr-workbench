@@ -275,7 +275,6 @@ class XRwidget(QOpenGLWidget):
         self.eye_view_states = None
         self.window_size = None
         self.enable_debug = True
-        self.linux_steamvr_broken_destroy_instance = False
         self.instance = None
         self.system_id = None
         self.pxrCreateDebugUtilsMessengerEXT = None
@@ -571,12 +570,6 @@ class XRwidget(QOpenGLWidget):
         )
         instance_props = xr.get_instance_properties(self.instance)
         self.logger.debug("Instance properties: %s", instance_props)
-        if platform.system() == 'Linux' and instance_props.runtime_name == b"SteamVR/OpenXR" and instance_props.runtime_version != 4294967296:  # 4294967296 is linux_v1.14 1.14.16
-            print("SteamVR/OpenXR on Linux detected, enabling workarounds")
-            # Enabling workaround for https://github.com/ValveSoftware/SteamVR-for-Linux/issues/422,
-            # and https://github.com/ValveSoftware/SteamVR-for-Linux/issues/479
-            # destroy_instance() causes SteamVR to hang and never recover
-            self.linux_steamvr_broken_destroy_instance = True
 
     def prepare_xr_system(self):
         get_info = xr.SystemGetInfo(xr.FormFactor.HEAD_MOUNTED_DISPLAY)
@@ -1715,10 +1708,7 @@ class XRwidget(QOpenGLWidget):
             self.session = None
         self.system_id = None
         if self.instance is not None:
-            # Workaround for https://github.com/ValveSoftware/SteamVR-for-Linux/issues/422
-            # and https://github.com/ValveSoftware/SteamVR-for-Linux/issues/479
-            if not self.linux_steamvr_broken_destroy_instance:
-                xr.destroy_instance(self.instance)
+            xr.destroy_instance(self.instance)
             self.instance = None
         for i, rs in enumerate(self.root_scene):
             self.root_scene[i].unref()
