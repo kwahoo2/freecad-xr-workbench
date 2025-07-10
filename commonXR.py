@@ -50,18 +50,18 @@ import logging
 from enum import Enum
 
 try:
-    from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
-    from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger
-    from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
-    import shiboken2 as shiboken
+    from PySide6.QtWidgets import QDockWidget
+    from PySide6.QtOpenGLWidgets import QOpenGLWidget
+    from PySide6.QtOpenGL import QOpenGLDebugLogger
+    from PySide6.QtGui import QOpenGLContext, QSurfaceFormat
+    from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
+    import shiboken6 as shiboken
 except ImportError:
     try:
-        from PySide6.QtWidgets import QDockWidget
-        from PySide6.QtOpenGLWidgets import QOpenGLWidget
-        from PySide6.QtOpenGL import QOpenGLDebugLogger
-        from PySide6.QtGui import QOpenGLContext, QSurfaceFormat
-        from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
-        import shiboken6 as shiboken
+        from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
+        from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger
+        from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
+        import shiboken2 as shiboken
     except ImportError:
         raise ImportError("Neither PySide2 nor PySide6 found!")
 
@@ -78,11 +78,10 @@ try:
         try:
             from OpenGL import GLX
             windowing_interface = "GLX"
-        except ImportError:
+        except Exception:
             try:
                 from OpenGL import EGL
                 windowing_interface = "EGL"
-                print("EGL not yet implemented, please run on X11")
             except ImportError:
                 print("No Windowing Interface found!")
 except ImportError:
@@ -90,9 +89,6 @@ except ImportError:
 
 try:
     import xr
-    if windowing_interface == 'EGL':
-        from xr.platform.linux import wl_display
-        LP_wl_display = ctypes.POINTER(wl_display)
 except ImportError:
     raise ImportError("pyopenxr is required!")
 
@@ -286,7 +282,7 @@ class XRwidget(QOpenGLWidget):
         elif windowing_interface == 'GLX':
             self.graphics_binding = xr.GraphicsBindingOpenGLXlibKHR()
         elif windowing_interface == 'EGL':
-            self.graphics_binding = xr.GraphicsBindingOpenGLWaylandKHR()
+            self.graphics_binding = xr.GraphicsBindingEGLMNDX()
         else:
             raise NotImplementedError('Unsupported platform')
         logging.basicConfig()
@@ -535,6 +531,8 @@ class XRwidget(QOpenGLWidget):
         if xr.EXT_DEBUG_UTILS_EXTENSION_NAME not in discovered_extensions:
             self.enable_debug = False
         requested_extensions = [xr.KHR_OPENGL_ENABLE_EXTENSION_NAME]
+        if windowing_interface == 'EGL':
+            requested_extensions.append(xr.MNDX_EGL_ENABLE_EXTENSION_NAME)
         if self.enable_debug:
             requested_extensions.append(xr.EXT_DEBUG_UTILS_EXTENSION_NAME)
         for extension in requested_extensions:
@@ -685,8 +683,29 @@ class XRwidget(QOpenGLWidget):
             self.graphics_binding.glx_context = GLX.glXGetCurrentContext()
             self.graphics_binding.glx_drawable = GLX.glXGetCurrentDrawable()
         elif windowing_interface == 'EGL':
-            display_instance = LP_wl_display(EGL.wl_display())
-            self.graphics_binding.display = display_instance
+            display = EGL.eglGetCurrentDisplay()
+            context = EGL.eglGetCurrentContext()
+            self.graphics_binding.context = ctypes.cast(context, ctypes.c_void_p)
+            self.graphics_binding.display = ctypes.cast(display, ctypes.c_void_p)
+            self.graphics_binding.get_proc_address = ctypes.cast(EGL.eglGetProcAddress.load(), xr.PFN_xrEglGetProcAddressMNDX)
+            config = ctypes.c_void_p()
+            num_configs = EGL.EGLint()
+            config_attribs = [
+                EGL.EGL_RENDERABLE_TYPE, EGL.EGL_OPENGL_BIT,
+                EGL.EGL_SURFACE_TYPE, EGL.EGL_PBUFFER_BIT | EGL.EGL_WINDOW_BIT,
+                EGL.EGL_RED_SIZE, 8,
+                EGL.EGL_GREEN_SIZE, 8,
+                EGL.EGL_BLUE_SIZE, 8,
+                EGL.EGL_ALPHA_SIZE, 8,
+                EGL.EGL_STENCIL_SIZE, 8,
+                EGL.EGL_DEPTH_SIZE, 24,
+                EGL.EGL_NONE
+            ]
+            attribs_list = (EGL.EGLint * len(config_attribs))(*config_attribs)
+            # https://registry.khronos.org/EGL/sdk/docs/man/html/eglChooseConfig.xhtml
+            # a config according to the ``best'' match criteria, is returned (may exceed the requirements)
+            EGL.eglChooseConfig(display, attribs_list, ctypes.byref(config), 1, ctypes.byref(num_configs))
+            self.graphics_binding.config = config
         else:
             print("Cannot create XR Session")
             return

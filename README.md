@@ -87,7 +87,7 @@ This version is also required for modelling tools like a [Pad or Pocket.](https:
 
 ## Known issues:
 
-Wayland/EGL support not implemented yet.
+Wayland/EGL support needs additional steps, please check [EGL Howto](doc/EGL_Howto.md)
 
 ## Tips and tricks:
 
