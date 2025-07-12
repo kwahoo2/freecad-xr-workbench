@@ -23,7 +23,7 @@ an example:
 
 `XR_RUNTIME_JSON=/usr/local/share/openxr/1/openxr_monado.json ./FreeCAD_1.0.0-conda-Linux-x86_64-py311.AppImage`
 
-Note: the OpenXR has to support [XR_KHR_opengl_enable](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_opengl_enable.html) extension. Known runtimes that support this extension include SteamVR and Monado.
+Note: the OpenXR has to support [XR_KHR_opengl_enable](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_opengl_enable.html) extension. List of runtimes that support this extension [can be found here.](https://github.khronos.org/OpenXR-Inventory/extension_support.html#XR_KHR_opengl_enable)
 
 
 
