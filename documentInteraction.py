@@ -509,6 +509,11 @@ def find_add_body():
     if not body:
         body = doc.addObject('PartDesign::Body', 'Body')
         Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
+        # special case for Draft Wires, since they are not treated as 2D objects anymore
+        if obj.TypeId == 'Part::FeaturePython':
+            obj.Visibility = False
+            obj = Draft.make_sketch(obj, autoconstraints=True)
+            curr_obj = obj
         try:
             body.addObject(obj)
         except Exception as e: # some objects, like Part objs cannot be added directly
