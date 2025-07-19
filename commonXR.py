@@ -701,23 +701,24 @@ class XRwidget(QOpenGLWidget):
             self.graphics_binding.context = ctypes.cast(context, ctypes.c_void_p)
             self.graphics_binding.display = ctypes.cast(display, ctypes.c_void_p)
             self.graphics_binding.get_proc_address = ctypes.cast(EGL.eglGetProcAddress.load(), xr.PFN_xrEglGetProcAddressMNDX)
-            config = ctypes.c_void_p()
+            config_id = EGL.EGLint()
+            EGL.eglQueryContext(display, context, EGL.EGL_CONFIG_ID, ctypes.byref(config_id))
             num_configs = EGL.EGLint()
-            config_attribs = [
-                EGL.EGL_RENDERABLE_TYPE, EGL.EGL_OPENGL_BIT,
-                EGL.EGL_SURFACE_TYPE, EGL.EGL_PBUFFER_BIT | EGL.EGL_WINDOW_BIT,
-                EGL.EGL_RED_SIZE, 8,
-                EGL.EGL_GREEN_SIZE, 8,
-                EGL.EGL_BLUE_SIZE, 8,
-                EGL.EGL_ALPHA_SIZE, 8,
-                EGL.EGL_STENCIL_SIZE, 8,
-                EGL.EGL_DEPTH_SIZE, 24,
-                EGL.EGL_NONE
-            ]
-            attribs_list = (EGL.EGLint * len(config_attribs))(*config_attribs)
-            # https://registry.khronos.org/EGL/sdk/docs/man/html/eglChooseConfig.xhtml
-            # a config according to the ``best'' match criteria, is returned (may exceed the requirements)
-            EGL.eglChooseConfig(display, attribs_list, ctypes.byref(config), 1, ctypes.byref(num_configs))
+            # get number of available configs first
+            EGL.eglGetConfigs(display, None, 0, ctypes.byref(num_configs))
+            configs = (ctypes.c_void_p * num_configs.value)()
+            EGL.eglGetConfigs(display, configs, num_configs.value, ctypes.byref(num_configs))
+            config = None
+            for i in range(num_configs.value):
+                current_config_id = EGL.EGLint()
+                EGL.eglGetConfigAttrib(display, configs[i], EGL.EGL_CONFIG_ID, ctypes.byref(current_config_id))
+                if current_config_id.value == config_id.value:
+                    config = configs[i]
+                    break
+
+            if not config:
+                raise Exception("No matching EGL config found")
+
             self.graphics_binding.config = config
         else:
             print("Cannot create XR Session")
