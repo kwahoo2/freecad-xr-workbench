@@ -52,7 +52,7 @@ from enum import Enum
 try:
     from PySide6.QtWidgets import QDockWidget
     from PySide6.QtOpenGLWidgets import QOpenGLWidget
-    from PySide6.QtOpenGL import QOpenGLDebugLogger
+    from PySide6.QtOpenGL import QOpenGLDebugLogger, QOpenGLFunctions_4_5_Compatibility
     from PySide6.QtGui import QOpenGLContext, QSurfaceFormat, QOffscreenSurface
     from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
     import shiboken6 as shiboken
@@ -60,6 +60,7 @@ except ImportError:
     try:
         from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
         from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger, QOffscreenSurface
+        from PySide2.QtOpenGLFunctions import QOpenGLFunctions_4_5_Compatibility
         from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
         import shiboken2 as shiboken
     except ImportError:
@@ -597,10 +598,14 @@ class XRwidget(QOpenGLWidget):
         if result.is_exception():
             raise result
 
+    def initializeGL(self):
+        self.gl_fc = QOpenGLFunctions_4_5_Compatibility()
+        self.gl_fc.initializeOpenGLFunctions()
+
     def initialize_offsGL(self):
         self.ctx.makeCurrent(self.offs_surface)
-        funcs = self.ctx.functions()
-        funcs.initializeOpenGLFunctions()
+        self.gl_ofc = QOpenGLFunctions_4_5_Compatibility()
+        self.gl_ofc.initializeOpenGLFunctions()
         if self.logger.level == logging.DEBUG:
             self.gl_logger = QOpenGLDebugLogger(self)
             self.gl_logger.initialize()
@@ -1641,45 +1646,45 @@ class XRwidget(QOpenGLWidget):
                         self.swapchain, ai)
                     wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
                     xr.wait_swapchain_image(self.swapchain, wi)
-                    GL.glUseProgram(0)
-                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_msaa_id)
+                    self.gl_ofc.glUseProgram(0)
+                    self.gl_ofc.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_msaa_id)
                     w, h = self.render_target_size
                     # "render" to the swapchain image
-                    GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
-                    GL.glEnable(GL.GL_BLEND)
-                    GL.glEnable(GL.GL_SCISSOR_TEST)
-                    GL.glScissor(0, 0, w // 2, h)
+                    self.gl_ofc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+                    self.gl_ofc.glEnable(GL.GL_BLEND)
+                    self.gl_ofc.glEnable(GL.GL_SCISSOR_TEST)
+                    self.gl_ofc.glScissor(0, 0, w // 2, h)
 
                     self.vp_reg.setViewportPixels(0, 0, w // 2, h)
                     self.m_sceneManager.setViewportRegion(self.vp_reg)
                     self.m_sceneManager.setSceneGraph(self.root_scene[0])
-                    GL.glEnable(GL.GL_DEPTH_TEST)
+                    self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
                     self.m_sceneManager.render()
-                    GL.glDisable(GL.GL_DEPTH_TEST)
+                    self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
 
-                    GL.glScissor(w // 2, 0, w // 2, h)
+                    self.gl_ofc.glScissor(w // 2, 0, w // 2, h)
                     self.vp_reg.setViewportPixels(w // 2, 0, w // 2, h)
                     self.m_sceneManager.setViewportRegion(self.vp_reg)
                     self.m_sceneManager.setSceneGraph(self.root_scene[1])
-                    GL.glEnable(GL.GL_DEPTH_TEST)
+                    self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
                     self.m_sceneManager.render()
-                    GL.glDisable(GL.GL_DEPTH_TEST)
+                    self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
 
-                    GL.glDisable(GL.GL_SCISSOR_TEST)
+                    self.gl_ofc.glDisable(GL.GL_SCISSOR_TEST)
 
-                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
+                    self.gl_ofc.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
                     sw_image = self.swapchain_images[swapchain_index]
-                    GL.glFramebufferTexture(
+                    self.gl_ofc.glFramebufferTexture(
                         GL.GL_FRAMEBUFFER,
                         GL.GL_COLOR_ATTACHMENT0,
                         sw_image.image,
                         0,
                     )
 
-                    GL.glBindFramebuffer(
+                    self.gl_ofc.glBindFramebuffer(
                         GL.GL_READ_FRAMEBUFFER, self.fbo_msaa_id)
-                    GL.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.fbo_id)
-                    GL.glBlitFramebuffer(
+                    self.gl_ofc.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.fbo_id)
+                    self.gl_ofc.glBlitFramebuffer(
                         0, 0, w, h, 0, 0,
                         w, h,
                         GL.GL_COLOR_BUFFER_BIT,
@@ -1689,7 +1694,7 @@ class XRwidget(QOpenGLWidget):
 
                     ri = xr.SwapchainImageReleaseInfo()
                     xr.release_swapchain_image(self.swapchain, ri)
-                    GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.window_fb)
+                    self.gl_ofc.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.window_fb)
 
                 self.end_xr_frame()
         if self.mirror_window:
@@ -1701,11 +1706,11 @@ class XRwidget(QOpenGLWidget):
         w, h = self.render_target_size
         self.window_fb = self.defaultFramebufferObject()
         # fast blit from the fbo to the window surface
-        GL.glBindFramebuffer(
+        self.gl_fc.glBindFramebuffer(
             GL.GL_READ_FRAMEBUFFER, self.fbo_id)
-        GL.glBindFramebuffer(
+        self.gl_fc.glBindFramebuffer(
             GL.GL_DRAW_FRAMEBUFFER, self.window_fb)
-        GL.glBlitFramebuffer(
+        self.gl_fc.glBlitFramebuffer(
             0, 0, w, h, 0, 0,
             self.size().width(), self.size().height(),
             GL.GL_COLOR_BUFFER_BIT,
