@@ -53,13 +53,13 @@ try:
     from PySide6.QtWidgets import QDockWidget
     from PySide6.QtOpenGLWidgets import QOpenGLWidget
     from PySide6.QtOpenGL import QOpenGLDebugLogger
-    from PySide6.QtGui import QOpenGLContext, QSurfaceFormat
+    from PySide6.QtGui import QOpenGLContext, QSurfaceFormat, QOffscreenSurface
     from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
     import shiboken6 as shiboken
 except ImportError:
     try:
         from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
-        from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger
+        from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger, QOffscreenSurface
         from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
         import shiboken2 as shiboken
     except ImportError:
@@ -215,12 +215,7 @@ class DockWidget(QDockWidget):
         # closed
         mw.mainWindowClosed.connect(self.close)
         if not pref.preferences().GetBool("MirrorEnable", False):
-            # hide after some rendering is done
-            self.setFloating(True)
-            # move the widget in the corner of the main window
-            self.move(mw.size().width(), mw.size().height())
-            self.showMinimized()
-            QTimer.singleShot(3000, self.hide_mirror)
+            self.hide_mirror()
 
     def closeEvent(self, event):
         self.xr_widget.terminate()
@@ -303,20 +298,29 @@ class XRwidget(QOpenGLWidget):
         frmt.setStencilBufferSize(8)
         frmt.setAlphaBufferSize(8)
         frmt.setSwapBehavior(QSurfaceFormat.SingleBuffer)
-        # multiple samples not required as MSAA is done in another buffer
-        frmt.setSamples(1)
         if log_level == logging.DEBUG:
             frmt.setOption(QSurfaceFormat.DebugContext)
-
         self.context.setFormat(frmt)
 
+        # Perform main rendering with QOffscreenSurface in a separate context
+        self.ctx = QOpenGLContext()
+        self.ctx.setFormat(frmt)
+        self.ctx.setShareContext(self.context)
+        self.ctx.create()
+        self.offs_surface = QOffscreenSurface()
+        self.offs_surface.setFormat(frmt)
+        self.offs_surface.create()
+        if self.offs_surface.isValid():
+            print ("Offscreen surface created")
+        else:
+            raise Exception("Failed to create offscreen surface")
         if log_level == logging.DEBUG:
-            if self.context.hasExtension(b"GL_KHR_debug"):
+            if self.ctx.hasExtension(b"GL_KHR_debug"):
                 print("GL_KHR_debug extension available")
             else:
                 print("GL_KHR_debug extension NOT available")
 
-        self.logger.debug("OpenGL Context: %s", self.context)
+        self.logger.debug("OpenGL Context: %s", self.ctx)
         # drawing QOpenGLWidget mirror window may degrade frame timing
         self.mirror_window = True
 
@@ -343,6 +347,7 @@ class XRwidget(QOpenGLWidget):
         self.setup_menus()
         self.setup_scene()  # have to be last, after cameras and controllers setup
         self.read_preferences()  # done after scene and menu init
+        self.initialize_offsGL()
         self.reload_scenegraph()
 
         self.timer = QTimer()
@@ -351,7 +356,7 @@ class XRwidget(QOpenGLWidget):
 
         self.timer_gui = QTimer()  # timer used to update non-vr things like widget title bar
         QObject.connect(self.timer_gui, SIGNAL("timeout()"), self.update_gui)
-        self.timer_gui.start(100)
+        #self.timer_gui.start(100)
         print("XR session has started")
 
     def debug_callback_py(
@@ -592,8 +597,9 @@ class XRwidget(QOpenGLWidget):
         if result.is_exception():
             raise result
 
-    def initializeGL(self):
-        funcs = self.context.functions()
+    def initialize_offsGL(self):
+        self.ctx.makeCurrent(self.offs_surface)
+        funcs = self.ctx.functions()
         funcs.initializeOpenGLFunctions()
         if self.logger.level == logging.DEBUG:
             self.gl_logger = QOpenGLDebugLogger(self)
@@ -668,6 +674,7 @@ class XRwidget(QOpenGLWidget):
             tex,
             0)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        self.ctx.doneCurrent()
 
     def prepare_window(self):
         self.resize(
@@ -675,6 +682,7 @@ class XRwidget(QOpenGLWidget):
             self.render_target_size[1] // 4)
 
     def prepare_xr_session(self):
+        self.ctx.makeCurrent(self.offs_surface)
         if windowing_interface == 'WGL':
             self.graphics_binding.h_dc = WGL.wglGetCurrentDC()
             self.graphics_binding.h_glrc = WGL.wglGetCurrentContext()
@@ -731,8 +739,10 @@ class XRwidget(QOpenGLWidget):
         for scf in swapchain_formats:
             self.logger.debug(
                 f"Session supports swapchain format {stringForFormat[scf]}")
+        self.ctx.doneCurrent()
 
     def prepare_xr_swapchain(self):
+        self.ctx.makeCurrent(self.offs_surface)
         self.swapchain_create_info.usage_flags = xr.SWAPCHAIN_USAGE_TRANSFER_DST_BIT
         self.swapchain_create_info.format = GL.GL_SRGB8_ALPHA8
         self.swapchain_create_info.sample_count = 1
@@ -748,6 +758,7 @@ class XRwidget(QOpenGLWidget):
         for i, si in enumerate(self.swapchain_images):
             self.logger.debug(
                 f"Swapchain image {i} type = {xr.StructureType(si.type)}")
+        self.ctx.doneCurrent()
 
     def prepare_xr_composition_layers(self):
         self.projection_layer.view_count = 2
@@ -1140,6 +1151,7 @@ class XRwidget(QOpenGLWidget):
         return False
 
     def end_xr_frame(self):
+        self.ctx.makeCurrent(self.offs_surface)
         frame_end_info = xr.FrameEndInfo(
             self.frame_state.predicted_display_time,
             xr.EnvironmentBlendMode.OPAQUE
@@ -1152,6 +1164,7 @@ class XRwidget(QOpenGLWidget):
                 layer_view.pose = eye_view.pose
             frame_end_info.layers = [ctypes.byref(self.projection_layer), ]
         xr.end_frame(self.session, frame_end_info)
+        self.ctx.doneCurrent()
 
     def check_teleport_jump(self):
         # teleport implementation
@@ -1610,7 +1623,7 @@ class XRwidget(QOpenGLWidget):
                 " ms")
 
     def update_render(self):
-        self.makeCurrent()
+        self.ctx.makeCurrent(self.offs_surface)
         if self.fbo_id is not None:  # make sure that initializeGL happened
             self.poll_xr_events()
             if self.quit:
@@ -1680,10 +1693,9 @@ class XRwidget(QOpenGLWidget):
 
                 self.end_xr_frame()
         if self.mirror_window:
-            # we do not use self.update(), but explicit widget repaint here
-            self.paintGL()
-            self.doneCurrent()
-            self.repaint()
+            # update the QOpenGLWidget
+            self.update()
+        self.ctx.doneCurrent()
 
     def paintGL(self):
         w, h = self.render_target_size
@@ -1703,7 +1715,7 @@ class XRwidget(QOpenGLWidget):
     def terminate(self):
         self.timer.stop()
         self.quit = True
-        self.makeCurrent()
+        self.ctx.makeCurrent(self.offs_surface)
         if hasattr(self, 'gl_logger'):
             self.gl_logger.stopLogging()
         if self.fbo_id is not None:
@@ -1732,7 +1744,7 @@ class XRwidget(QOpenGLWidget):
         for i, rs in enumerate(self.root_scene):
             self.root_scene[i].unref()
         self.cam_picking_root.unref()
-        self.doneCurrent()
+        self.ctx.doneCurrent()
         self.deleteLater()
         print("XR terminated")
 
