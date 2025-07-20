@@ -208,7 +208,11 @@ class DockWidget(QDockWidget):
         self.setAttribute(Qt.WA_DeleteOnClose)
         mw = Gui.getMainWindow()
         # set log_level=logging.DEBUG for more info
-        self.xr_widget = XRwidget(log_level=logging.WARNING)
+        if pref.preferences().GetBool("DebugEnable", False):
+            log_level = logging.DEBUG
+        else:
+            log_level = logging.WARNING
+        self.xr_widget = XRwidget(log_level=log_level)
         self.setWidget(self.xr_widget)
         # widget without close button
         self.setFeatures(QDockWidget.DockWidgetMovable |
@@ -619,6 +623,8 @@ class XRwidget(QOpenGLWidget):
         frmt = QOpenGLFramebufferObjectFormat()
         frmt.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
         frmt.setSamples(self.sample_count)
+        self.logger.debug(
+                f"MSAA {self.sample_count}x")
         frmt.setTextureTarget(GL.GL_TEXTURE_2D)
         self.fbo_msaa = QOpenGLFramebufferObject(w, h, frmt)
         self.fbo_msaa.bind()

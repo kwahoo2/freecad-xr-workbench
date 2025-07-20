@@ -48,8 +48,10 @@ class PreferencesPage:
         pref.SetInt("RotationalSpeed", self.form.rotSpeedSlider.value())
         pref.SetInt("AmbientLightIntesity", self.form.ambiLiSlider.value())
         pref.SetInt("DirectionalLightIntesity", self.form.dirLiSlider.value())
-        pref.SetInt("MSAA", self.form.msaaSpinBox.value())
+        msaa_vals = [0, 2, 4, 8]
+        pref.SetInt("MSAA", msaa_vals[self.form.msaaComboBox.currentIndex()])
         pref.SetBool("MirrorEnable", self.form.mirrEnblCheckBox.isChecked())
+        pref.SetBool("DebugEnable", self.form.debugEnblCheckBox.isChecked())
         if self.form.movArchRadioButton.isChecked():
             pref.SetString("Movement", "ARCH")
         elif self.form.movFreeRadioButton.isChecked():
@@ -66,9 +68,11 @@ class PreferencesPage:
             pref.GetInt("AmbientLightIntesity", 40))
         self.form.dirLiSlider.setValue(
             pref.GetInt("DirectionalLightIntesity", 80))
-        self.form.msaaSpinBox.setValue(pref.GetInt("MSAA", 4))
+        msaa_val_to_index = {0: 0, 2: 1, 4: 2, 8: 3}
+        self.form.msaaComboBox.setCurrentIndex(msaa_val_to_index.get(pref.GetInt("MSAA", 4), 0))
         mov_str = pref.GetString("Movement", "ARCH")
         self.form.mirrEnblCheckBox.setChecked(pref.GetBool("MirrorEnable", False))
+        self.form.debugEnblCheckBox.setChecked(pref.GetBool("DebugEnable", False))
         if mov_str == "ARCH":
             self.form.movArchRadioButton.setChecked(True)
         elif mov_str == "FREE":
