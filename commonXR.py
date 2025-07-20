@@ -53,6 +53,7 @@ try:
     from PySide6.QtWidgets import QDockWidget
     from PySide6.QtOpenGLWidgets import QOpenGLWidget
     from PySide6.QtOpenGL import QOpenGLDebugLogger, QOpenGLFunctions_4_5_Compatibility
+    from PySide6.QtOpenGL import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
     from PySide6.QtGui import QOpenGLContext, QSurfaceFormat, QOffscreenSurface
     from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
     import shiboken6 as shiboken
@@ -60,6 +61,7 @@ except ImportError:
     try:
         from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
         from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger, QOffscreenSurface
+        from PySide2.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
         from PySide2.QtOpenGLFunctions import QOpenGLFunctions_4_5_Compatibility
         from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
         import shiboken2 as shiboken
@@ -258,9 +260,8 @@ class XRwidget(QOpenGLWidget):
         self.swapchain_create_info = xr.SwapchainCreateInfo()
         self.swapchain = None
         self.swapchain_images = None
-        self.fbo_id = None
-        self.fbo_msaa_id = None
-        self.fbo_depth_buffer = None
+        self.fbo = None
+        self.fbo_msaa = None
         self.quit = False
         self.session_state = xr.SessionState.IDLE
         self.frame_state = xr.FrameState()
@@ -613,72 +614,30 @@ class XRwidget(QOpenGLWidget):
             self.gl_logger.startLogging()
 
         w, h = self.render_target_size
-        # configure MSAA
-        GL.glEnable(GL.GL_MULTISAMPLE)
-        self.fbo_msaa_id = GL.glGenFramebuffers(1)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_msaa_id)
-        # create a multisampled color attachment texture
-        msaa_color_buf = GL.glGenTextures(1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D_MULTISAMPLE, msaa_color_buf)
-        GL.glTexImage2DMultisample(GL.GL_TEXTURE_2D_MULTISAMPLE,
-                                   self.sample_count,
-                                   GL.GL_RGBA8,
-                                   w,
-                                   h,
-                                   GL.GL_TRUE)
-        GL.glBindTexture(GL.GL_TEXTURE_2D_MULTISAMPLE, 0)
-        GL.glFramebufferTexture2D(GL.GL_FRAMEBUFFER,
-                                  GL.GL_COLOR_ATTACHMENT0,
-                                  GL.GL_TEXTURE_2D_MULTISAMPLE,
-                                  msaa_color_buf,
-                                  0)
-        # create a multisampled renderbuffer object
-        self.fbo_depth_buffer = GL.glGenRenderbuffers(1)
-        GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, self.fbo_depth_buffer)
-        GL.glRenderbufferStorageMultisample(GL.GL_RENDERBUFFER,
-                                            self.sample_count,
-                                            GL.GL_DEPTH24_STENCIL8,
-                                            w,
-                                            h)
-        GL.glBindRenderbuffer(GL.GL_RENDERBUFFER, 0)
-        GL.glFramebufferRenderbuffer(
-            GL.GL_DRAW_FRAMEBUFFER,
-            GL.GL_DEPTH_STENCIL_ATTACHMENT,
-            GL.GL_RENDERBUFFER,
-            self.fbo_depth_buffer,
-        )
+
+        # intermediatte MSAA framebuffer
+        frmt = QOpenGLFramebufferObjectFormat()
+        frmt.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+        frmt.setSamples(self.sample_count)
+        frmt.setTextureTarget(GL.GL_TEXTURE_2D)
+        self.fbo_msaa = QOpenGLFramebufferObject(w, h, frmt)
+        self.fbo_msaa.bind()
+        if not self.fbo_msaa.isValid():
+            raise Exception("MSAA FBO is not valid!")
+        self.fbo_msaa.release()
 
         # target framebuffer
-        self.fbo_id = GL.glGenFramebuffers(1)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
-
-        tex = GL.glGenTextures(1)
-        GL.glBindTexture(GL.GL_TEXTURE_2D, tex)
-        GL.glTexImage2D(GL.GL_TEXTURE_2D,
-                        0,
-                        GL.GL_RGBA8,
-                        w,
-                        h,
-                        0,
-                        GL.GL_RGBA,
-                        GL.GL_UNSIGNED_BYTE,
-                        None)
-        GL.glTexParameteri(
-            GL.GL_TEXTURE_2D,
-            GL.GL_TEXTURE_MIN_FILTER,
-            GL.GL_LINEAR)
-        GL.glTexParameteri(
-            GL.GL_TEXTURE_2D,
-            GL.GL_TEXTURE_MAG_FILTER,
-            GL.GL_LINEAR)
-        # only color buffer is needed
-        GL.glFramebufferTexture2D(
-            GL.GL_FRAMEBUFFER,
-            GL.GL_COLOR_ATTACHMENT0,
-            GL.GL_TEXTURE_2D,
-            tex,
-            0)
-        GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, 0)
+        frmt.setSamples(0)
+        self.fbo = QOpenGLFramebufferObject(w, h, frmt)
+        self.fbo.bind()
+        tex_id = self.fbo.texture()
+        self.gl_ofc.glBindTexture(GL.GL_TEXTURE_2D, tex_id)
+        self.gl_ofc.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        self.gl_ofc.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+        if not self.fbo.isValid():
+            raise Exception("FBO is not valid!")
+        self.fbo.release()
+        self.fbo.bindDefault()
         self.ctx.doneCurrent()
 
     def prepare_window(self):
@@ -1630,74 +1589,67 @@ class XRwidget(QOpenGLWidget):
 
     def update_render(self):
         self.ctx.makeCurrent(self.offs_surface)
-        if self.fbo_id is not None:  # make sure that initializeGL happened
-            self.poll_xr_events()
-            if self.quit:
-                return
-            if self.start_xr_frame():
-                if self.frame_state.should_render:
-                    self.update_xr_controls()
-                    self.update_xr_movement()
-                    self.update_xr_views()
-                    ren_timer = QElapsedTimer()
-                    ren_timer.start()
-                    self.window_fb = self.defaultFramebufferObject()  # widget's (not context) DFO
-                    ai = xr.SwapchainImageAcquireInfo(None)
-                    swapchain_index = xr.acquire_swapchain_image(
-                        self.swapchain, ai)
-                    wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
-                    xr.wait_swapchain_image(self.swapchain, wi)
-                    self.gl_ofc.glUseProgram(0)
-                    self.gl_ofc.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_msaa_id)
-                    w, h = self.render_target_size
-                    # "render" to the swapchain image
-                    self.gl_ofc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
-                    self.gl_ofc.glEnable(GL.GL_BLEND)
-                    self.gl_ofc.glEnable(GL.GL_SCISSOR_TEST)
-                    self.gl_ofc.glScissor(0, 0, w // 2, h)
+        self.poll_xr_events()
+        if self.quit:
+            return
+        if self.start_xr_frame():
+            if self.frame_state.should_render:
+                self.update_xr_controls()
+                self.update_xr_movement()
+                self.update_xr_views()
+                ren_timer = QElapsedTimer()
+                ren_timer.start()
+                self.window_fb = self.defaultFramebufferObject()  # widget's (not context) DFO
+                ai = xr.SwapchainImageAcquireInfo(None)
+                swapchain_index = xr.acquire_swapchain_image(
+                    self.swapchain, ai)
+                wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
+                xr.wait_swapchain_image(self.swapchain, wi)
+                self.gl_ofc.glUseProgram(0)
+                self.fbo_msaa.bind()
+                w, h = self.render_target_size
+                # "render" to the swapchain image
+                self.gl_ofc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+                self.gl_ofc.glEnable(GL.GL_BLEND)
+                self.gl_ofc.glEnable(GL.GL_SCISSOR_TEST)
+                self.gl_ofc.glScissor(0, 0, w // 2, h)
 
-                    self.vp_reg.setViewportPixels(0, 0, w // 2, h)
-                    self.m_sceneManager.setViewportRegion(self.vp_reg)
-                    self.m_sceneManager.setSceneGraph(self.root_scene[0])
-                    self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
-                    self.m_sceneManager.render()
-                    self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
+                self.vp_reg.setViewportPixels(0, 0, w // 2, h)
+                self.m_sceneManager.setViewportRegion(self.vp_reg)
+                self.m_sceneManager.setSceneGraph(self.root_scene[0])
+                self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
+                self.m_sceneManager.render()
+                self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
 
-                    self.gl_ofc.glScissor(w // 2, 0, w // 2, h)
-                    self.vp_reg.setViewportPixels(w // 2, 0, w // 2, h)
-                    self.m_sceneManager.setViewportRegion(self.vp_reg)
-                    self.m_sceneManager.setSceneGraph(self.root_scene[1])
-                    self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
-                    self.m_sceneManager.render()
-                    self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
+                self.gl_ofc.glScissor(w // 2, 0, w // 2, h)
+                self.vp_reg.setViewportPixels(w // 2, 0, w // 2, h)
+                self.m_sceneManager.setViewportRegion(self.vp_reg)
+                self.m_sceneManager.setSceneGraph(self.root_scene[1])
+                self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
+                self.m_sceneManager.render()
+                self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
 
-                    self.gl_ofc.glDisable(GL.GL_SCISSOR_TEST)
+                self.gl_ofc.glDisable(GL.GL_SCISSOR_TEST)
 
-                    self.gl_ofc.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.fbo_id)
-                    sw_image = self.swapchain_images[swapchain_index]
-                    self.gl_ofc.glFramebufferTexture(
-                        GL.GL_FRAMEBUFFER,
-                        GL.GL_COLOR_ATTACHMENT0,
-                        sw_image.image,
-                        0,
-                    )
+                self.fbo.bind()
+                sw_image = self.swapchain_images[swapchain_index]
+                self.gl_ofc.glFramebufferTexture(
+                    GL.GL_FRAMEBUFFER,
+                    GL.GL_COLOR_ATTACHMENT0,
+                    sw_image.image,
+                    0,
+                )
 
-                    self.gl_ofc.glBindFramebuffer(
-                        GL.GL_READ_FRAMEBUFFER, self.fbo_msaa_id)
-                    self.gl_ofc.glBindFramebuffer(GL.GL_DRAW_FRAMEBUFFER, self.fbo_id)
-                    self.gl_ofc.glBlitFramebuffer(
-                        0, 0, w, h, 0, 0,
-                        w, h,
-                        GL.GL_COLOR_BUFFER_BIT,
-                        GL.GL_NEAREST
-                    )
-                    self.render_duration = ren_timer.nsecsElapsed()
+                self.fbo.blitFramebuffer(self.fbo, self.fbo_msaa)
+                self.render_duration = ren_timer.nsecsElapsed()
 
-                    ri = xr.SwapchainImageReleaseInfo()
-                    xr.release_swapchain_image(self.swapchain, ri)
-                    self.gl_ofc.glBindFramebuffer(GL.GL_FRAMEBUFFER, self.window_fb)
+                ri = xr.SwapchainImageReleaseInfo()
+                xr.release_swapchain_image(self.swapchain, ri)
+                self.fbo.release()
+                self.fbo_msaa.release()
+                self.fbo.bindDefault()
 
-                self.end_xr_frame()
+            self.end_xr_frame()
         if self.mirror_window:
             # update the QOpenGLWidget
             self.update()
@@ -1708,7 +1660,7 @@ class XRwidget(QOpenGLWidget):
         self.window_fb = self.defaultFramebufferObject()
         # fast blit from the fbo to the window surface
         self.gl_fc.glBindFramebuffer(
-            GL.GL_READ_FRAMEBUFFER, self.fbo_id)
+            GL.GL_READ_FRAMEBUFFER, self.fbo.handle())
         self.gl_fc.glBindFramebuffer(
             GL.GL_DRAW_FRAMEBUFFER, self.window_fb)
         self.gl_fc.glBlitFramebuffer(
@@ -1724,12 +1676,12 @@ class XRwidget(QOpenGLWidget):
         self.ctx.makeCurrent(self.offs_surface)
         if hasattr(self, 'gl_logger'):
             self.gl_logger.stopLogging()
-        if self.fbo_id is not None:
-            GL.glDeleteFramebuffers(1, [self.fbo_id])
-            self.fbo_id = None
-        if self.fbo_depth_buffer is not None:
-            GL.glDeleteRenderbuffers(1, [self.fbo_depth_buffer])
-            self.fbo_depth_buffer = None
+        if self.fbo is not None:
+            self.fbo.release()
+            self.fbo = None
+        if self.fbo_msaa is not None:
+            self.fbo_msaa.release()
+            self.fbo_msaa = None
         if self.action_set is not None:
             for hand in range(self.hand_count):
                 if self.hand_space[hand] is not None:
