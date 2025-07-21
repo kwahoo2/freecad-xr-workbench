@@ -292,42 +292,30 @@ class XRwidget(QOpenGLWidget):
         self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(
             self.debug_callback_py)
 
-        self.context = QOpenGLContext.currentContext()
-        # Attempt to disable vsync on the desktop window or
-        # it will interfere with the OpenXR frame loop timing
-        frmt = self.context.format()
-        frmt.setSwapInterval(0)
-        frmt.setRedBufferSize(8)
-        frmt.setGreenBufferSize(8)
-        frmt.setBlueBufferSize(8)
-        frmt.setDepthBufferSize(24)
-        frmt.setStencilBufferSize(8)
-        frmt.setAlphaBufferSize(8)
-        frmt.setSwapBehavior(QSurfaceFormat.SingleBuffer)
+        self.global_context = QOpenGLContext.globalShareContext()
+        frmt = self.global_context.format()
         if log_level == logging.DEBUG:
             frmt.setOption(QSurfaceFormat.DebugContext)
-        self.context.setFormat(frmt)
 
         # Perform main rendering with QOffscreenSurface in a separate context
         self.ctx = QOpenGLContext()
         self.ctx.setFormat(frmt)
-        self.ctx.setShareContext(self.context)
+        self.ctx.setShareContext(self.global_context)
         self.ctx.create()
         self.offs_surface = QOffscreenSurface()
         self.offs_surface.setFormat(frmt)
         self.offs_surface.create()
         if self.offs_surface.isValid():
-            print ("Offscreen surface created")
+            self.logger.debug("Offscreen surface created")
         else:
             raise Exception("Failed to create offscreen surface")
         if log_level == logging.DEBUG:
             if self.ctx.hasExtension(b"GL_KHR_debug"):
-                print("GL_KHR_debug extension available")
+                self.logger.debug("GL_KHR_debug extension available")
             else:
                 print("GL_KHR_debug extension NOT available")
 
         self.logger.debug("OpenGL Context: %s", self.ctx)
-        # drawing QOpenGLWidget mirror window may degrade frame timing
         self.mirror_window = True
 
         self.hand_count = 2
@@ -362,7 +350,7 @@ class XRwidget(QOpenGLWidget):
 
         self.timer_gui = QTimer()  # timer used to update non-vr things like widget title bar
         QObject.connect(self.timer_gui, SIGNAL("timeout()"), self.update_gui)
-        #self.timer_gui.start(100)
+        self.timer_gui.start(100)
         print("XR session has started")
 
     def debug_callback_py(
@@ -634,16 +622,12 @@ class XRwidget(QOpenGLWidget):
 
         # target framebuffer
         frmt.setSamples(0)
+        frmt.setAttachment(QOpenGLFramebufferObject.NoAttachment)
         self.fbo = QOpenGLFramebufferObject(w, h, frmt)
         self.fbo.bind()
-        tex_id = self.fbo.texture()
-        self.gl_ofc.glBindTexture(GL.GL_TEXTURE_2D, tex_id)
-        self.gl_ofc.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
-        self.gl_ofc.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
         if not self.fbo.isValid():
             raise Exception("FBO is not valid!")
         self.fbo.release()
-        self.fbo.bindDefault()
         self.ctx.doneCurrent()
 
     def prepare_window(self):
@@ -1611,7 +1595,6 @@ class XRwidget(QOpenGLWidget):
                     self.swapchain, ai)
                 wi = xr.SwapchainImageWaitInfo(xr.INFINITE_DURATION)
                 xr.wait_swapchain_image(self.swapchain, wi)
-                self.gl_ofc.glUseProgram(0)
                 self.fbo_msaa.bind()
                 w, h = self.render_target_size
                 # "render" to the swapchain image
@@ -1665,11 +1648,8 @@ class XRwidget(QOpenGLWidget):
         w, h = self.render_target_size
         self.window_fb = self.defaultFramebufferObject()
         # fast blit from the fbo to the window surface
-        self.gl_fc.glBindFramebuffer(
-            GL.GL_READ_FRAMEBUFFER, self.fbo.handle())
-        self.gl_fc.glBindFramebuffer(
-            GL.GL_DRAW_FRAMEBUFFER, self.window_fb)
-        self.gl_fc.glBlitFramebuffer(
+        self.gl_fc.glBlitNamedFramebuffer(
+            self.fbo.handle(), self.window_fb,
             0, 0, w, h, 0, 0,
             self.size().width(), self.size().height(),
             GL.GL_COLOR_BUFFER_BIT,
