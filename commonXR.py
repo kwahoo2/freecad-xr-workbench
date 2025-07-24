@@ -287,7 +287,7 @@ class XRwidget(QOpenGLWidget):
         else:
             raise NotImplementedError('Unsupported platform')
         logging.basicConfig()
-        self.logger = logging.getLogger("xr_viewer")
+        self.logger = logging.getLogger("FreeCAD XR Workbench")
         self.logger.setLevel(log_level)
         self.debug_callback = xr.PFN_xrDebugUtilsMessengerCallbackEXT(
             self.debug_callback_py)
@@ -315,7 +315,7 @@ class XRwidget(QOpenGLWidget):
             else:
                 print("GL_KHR_debug extension NOT available")
 
-        self.logger.debug("OpenGL Context: %s", self.ctx)
+        self.logger.debug("Offscreen OpenGL context: %s", self.ctx)
         self.mirror_window = True
 
         self.hand_count = 2
@@ -537,7 +537,7 @@ class XRwidget(QOpenGLWidget):
         for extension in requested_extensions:
             assert extension in discovered_extensions
         app_info = xr.ApplicationInfo(
-            application_name="xr_viewer",
+            application_name="FreeCAD XR Workbench",
             application_version=0,
             engine_name="pyopenxr",
             engine_version=xr.PYOPENXR_CURRENT_API_VERSION,
@@ -594,16 +594,26 @@ class XRwidget(QOpenGLWidget):
     def initializeGL(self):
         self.gl_fc = QOpenGLFunctions_4_5_Compatibility()
         self.gl_fc.initializeOpenGLFunctions()
+        self.logger.debug("The widget's OpenGL context: %s", self.context())
+        self.logger.debug("Are the contexts sharing: %s", QOpenGLContext.areSharing(self.context(), self.ctx))
+        self.logger.debug("Is the widget valid: %s", self.isValid())
+        self.logger.debug("The widget's texture format: %s", self.textureFormat())
+        if self.logger.level == logging.DEBUG:
+            self.gl_logger = QOpenGLDebugLogger(self)
+            self.gl_logger.initialize()
+            self.gl_logger.messageLogged.connect(self.log_message)
+            self.gl_logger.startLogging()
+
 
     def initialize_offsGL(self):
         self.ctx.makeCurrent(self.offs_surface)
         self.gl_ofc = QOpenGLFunctions_4_5_Compatibility()
         self.gl_ofc.initializeOpenGLFunctions()
         if self.logger.level == logging.DEBUG:
-            self.gl_logger = QOpenGLDebugLogger(self)
-            self.gl_logger.initialize()
-            self.gl_logger.messageLogged.connect(self.log_message)
-            self.gl_logger.startLogging()
+            self.ogl_logger = QOpenGLDebugLogger(self)
+            self.ogl_logger.initialize()
+            self.ogl_logger.messageLogged.connect(self.offs_log_message)
+            self.ogl_logger.startLogging()
 
         w, h = self.render_target_size
 
@@ -622,7 +632,7 @@ class XRwidget(QOpenGLWidget):
 
         # target framebuffer
         frmt.setSamples(0)
-        frmt.setAttachment(QOpenGLFramebufferObject.NoAttachment)
+        #frmt.setAttachment(QOpenGLFramebufferObject.NoAttachment)
         self.fbo = QOpenGLFramebufferObject(w, h, frmt)
         self.fbo.bind()
         if not self.fbo.isValid():
@@ -1636,7 +1646,6 @@ class XRwidget(QOpenGLWidget):
                 xr.release_swapchain_image(self.swapchain, ri)
                 self.fbo.release()
                 self.fbo_msaa.release()
-                self.fbo.bindDefault()
 
             self.end_xr_frame()
         if self.mirror_window:
@@ -1645,7 +1654,8 @@ class XRwidget(QOpenGLWidget):
         self.ctx.doneCurrent()
 
     def paintGL(self):
-        w, h = self.render_target_size
+        w = self.fbo.size().width()
+        h = self.fbo.size().height()
         self.window_fb = self.defaultFramebufferObject()
         # fast blit from the fbo to the window surface
         self.gl_fc.glBlitNamedFramebuffer(
@@ -1653,15 +1663,15 @@ class XRwidget(QOpenGLWidget):
             0, 0, w, h, 0, 0,
             self.size().width(), self.size().height(),
             GL.GL_COLOR_BUFFER_BIT,
-            GL.GL_NEAREST
+            GL.GL_LINEAR
         )
 
     def terminate(self):
         self.timer.stop()
         self.quit = True
         self.ctx.makeCurrent(self.offs_surface)
-        if hasattr(self, 'gl_logger'):
-            self.gl_logger.stopLogging()
+        if hasattr(self, 'offs_gl_logger'):
+           self.offs_gl_logger.stopLogging()
         if self.fbo is not None:
             self.fbo.release()
             self.fbo = None
@@ -1689,6 +1699,10 @@ class XRwidget(QOpenGLWidget):
             self.root_scene[i].unref()
         self.cam_picking_root.unref()
         self.ctx.doneCurrent()
+        self.makeCurrent()
+        if hasattr(self, 'gl_logger'):
+            self.gl_logger.stopLogging()
+        self.doneCurrent()
         self.deleteLater()
         print("XR terminated")
 
@@ -1699,7 +1713,10 @@ class XRwidget(QOpenGLWidget):
         self.mirror_window = True
 
     def log_message(self, message):
-        print(f"OpenGL Debug: {message.message()}")
+        print(f"Widget's context OpenGL debug: {message.message()}")
+
+    def offs_log_message(self, message):
+        print(f"Offscreen context OpenGL debug: {message.message()}")
 
     # getting key events requires widget's focus
     # widget have to be shown, and get focus after user clicking in it
