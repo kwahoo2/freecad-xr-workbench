@@ -53,7 +53,7 @@ try:
     from PySide6.QtWidgets import QDockWidget
     from PySide6.QtOpenGLWidgets import QOpenGLWidget
     from PySide6.QtOpenGL import QOpenGLDebugLogger, QOpenGLFunctions_4_5_Compatibility
-    from PySide6.QtOpenGL import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+    from PySide6.QtOpenGL import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat, QOpenGLTexture
     from PySide6.QtGui import QOpenGLContext, QSurfaceFormat, QOffscreenSurface
     from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
     import shiboken6 as shiboken
@@ -61,7 +61,7 @@ except ImportError:
     try:
         from PySide2.QtWidgets import QOpenGLWidget, QDockWidget
         from PySide2.QtGui import QOpenGLContext, QSurfaceFormat, QOpenGLDebugLogger, QOffscreenSurface
-        from PySide2.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat
+        from PySide2.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat, QOpenGLTexture
         from PySide2.QtOpenGLFunctions import QOpenGLFunctions_4_5_Compatibility
         from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
         import shiboken2 as shiboken
@@ -266,6 +266,7 @@ class XRwidget(QOpenGLWidget):
         self.swapchain_images = None
         self.fbo = None
         self.fbo_msaa = None
+        self.fbo_texture = None
         self.quit = False
         self.session_state = xr.SessionState.IDLE
         self.frame_state = xr.FrameState()
@@ -637,6 +638,13 @@ class XRwidget(QOpenGLWidget):
         self.fbo.bind()
         if not self.fbo.isValid():
             raise Exception("FBO is not valid!")
+
+        self.fbo_texture = QOpenGLTexture(QOpenGLTexture.Target2D)
+        self.fbo_texture.setSize(w, h)
+        self.fbo_texture.setFormat(QOpenGLTexture.RGBA8_UNorm)
+        self.fbo_texture.allocateStorage()
+        self.fbo_texture.create()
+        self.logger.debug("Is mirror texture created: %s", self.fbo_texture.isCreated())
         self.fbo.release()
         self.ctx.doneCurrent()
 
@@ -1638,7 +1646,6 @@ class XRwidget(QOpenGLWidget):
                     sw_image.image,
                     0,
                 )
-
                 self.fbo.blitFramebuffer(self.fbo, self.fbo_msaa)
                 self.render_duration = ren_timer.nsecsElapsed()
 
@@ -1646,25 +1653,47 @@ class XRwidget(QOpenGLWidget):
                 xr.release_swapchain_image(self.swapchain, ri)
                 self.fbo.release()
                 self.fbo_msaa.release()
-
+                if self.mirror_window:
+                    self.fbo.bind()
+                    self.gl_ofc.glCopyTextureSubImage2D(
+                        self.fbo_texture.textureId(),
+                        0,
+                        0, 0,
+                        0, 0,
+                        w, h,
+                    )
+                    self.fbo.release()
+                    # update the QOpenGLWidget
+                    self.update()
+                self.ctx.doneCurrent()
             self.end_xr_frame()
-        if self.mirror_window:
-            # update the QOpenGLWidget
-            self.update()
-        self.ctx.doneCurrent()
 
     def paintGL(self):
-        w = self.fbo.size().width()
-        h = self.fbo.size().height()
-        self.window_fb = self.defaultFramebufferObject()
-        # fast blit from the fbo to the window surface
-        self.gl_fc.glBlitNamedFramebuffer(
-            self.fbo.handle(), self.window_fb,
-            0, 0, w, h, 0, 0,
-            self.size().width(), self.size().height(),
-            GL.GL_COLOR_BUFFER_BIT,
-            GL.GL_LINEAR
-        )
+        # Since glBlitFramebuffer for blitting FBOs that belong
+        # to two different (shared) contexts is not allowed for some implementations,
+        # textured quad is used instead.
+        # Legacy GL is required by Coin3D already, so it can be used here.
+        QOpenGLFramebufferObject.bindDefault()
+        self.gl_fc.glViewport(0, 0, self.size().width(), self.size().height())
+        self.gl_fc.glMatrixMode(GL.GL_PROJECTION)
+        self.gl_fc.glLoadIdentity()
+        self.gl_fc.glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
+        self.gl_fc.glMatrixMode(GL.GL_MODELVIEW)
+        self.gl_fc.glLoadIdentity()
+        self.gl_fc.glClear(GL.GL_COLOR_BUFFER_BIT)
+        self.gl_fc.glEnable(GL.GL_TEXTURE_2D)
+        self.fbo_texture.bind()
+        self.gl_fc.glBegin(GL.GL_QUADS)
+        self.gl_fc.glTexCoord2f(0.0, 0.0)
+        self.gl_fc.glVertex2f(-1.0, -1.0)
+        self.gl_fc.glTexCoord2f(1.0, 0.0)
+        self.gl_fc.glVertex2f(1.0, -1.0)
+        self.gl_fc.glTexCoord2f(1.0, 1.0)
+        self.gl_fc.glVertex2f(1.0, 1.0)
+        self.gl_fc.glTexCoord2f(0.0, 1.0)
+        self.gl_fc.glVertex2f(-1.0, 1.0)
+        self.gl_fc.glEnd()
+        self.fbo_texture.release()
 
     def terminate(self):
         self.timer.stop()
@@ -1678,6 +1707,9 @@ class XRwidget(QOpenGLWidget):
         if self.fbo_msaa is not None:
             self.fbo_msaa.release()
             self.fbo_msaa = None
+        if self.fbo_texture is not None:
+            self.fbo_texture.destroy()
+            self.fbo_texture = None
         if self.action_set is not None:
             for hand in range(self.hand_count):
                 if self.hand_space[hand] is not None:
