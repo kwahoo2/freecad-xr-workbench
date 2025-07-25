@@ -35,8 +35,9 @@ from pivy.coin import SoCube, SoSphere
 from pivy.coin import SoInput, SoDB
 from pivy.coin import SoVertexProperty, SoLineSet
 from pivy.coin import SoBaseColor, SbColor
-from pivy.coin import SoRayPickAction
+from pivy.coin import SoRayPickAction, SoPickStyle
 from pivy.coin import SoSwitch, SO_SWITCH_NONE, SO_SWITCH_ALL
+
 
 LOW_STATE = 0.3
 HIGH_STATE = 0.7
@@ -101,6 +102,9 @@ class xrController:
             # replace controller with simple cube if the iv file not found
             con_node.addChild(con_cube)
         con_sep.addChild(self.con_transform)
+        unpickable = SoPickStyle()
+        unpickable.style = SoPickStyle.UNPICKABLE
+        con_sep.addChild(unpickable)
         con_sep.addChild(con_node)
         self.controller_node.addChild(con_sep)
 

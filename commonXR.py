@@ -418,7 +418,7 @@ class XRwidget(QOpenGLWidget):
         self.doc_xr_transform.rotation.setValue(
             SbRotation(SbVec3f(1, 0, 0), -pi / 2))
         self.sg = SoSeparator()  # placeholder for scenegraph
-        self.geo_prev = prCoin.coinPreview() # geometry preview
+        self.geo_prev = prCoin.coinPreview()  # geometry preview
         # store complete transformation of world, including artificial movement
         self.world_transform = SoTransform()
         self.world_separator = SoSeparator()
@@ -440,7 +440,8 @@ class XRwidget(QOpenGLWidget):
                     self.xr_con[hand].get_controller_scenegraph())
                 if self.xr_con[hand].get_ray_scenegraph():
                     self.sgrp[eye_index].addChild(
-                        self.xr_con[hand].get_ray_scenegraph())  # ray for controller
+                        # ray for controller
+                        self.xr_con[hand].get_ray_scenegraph())
             # add menus
             self.sgrp[eye_index].addChild(
                 self.con_menu.get_menu_scenegraph())
@@ -455,8 +456,7 @@ class XRwidget(QOpenGLWidget):
         self.cam_picking_root.addChild(self.pick_camera)
         self.cam_picking_root.addChild(self.world_separator)
         self.cam_picking_root.addChild(
-                self.geo_prev.get_scenegraph())
-
+            self.geo_prev.get_scenegraph())
 
     def setup_controllers(self):
         # initialise scenegraphs for controllers
@@ -596,15 +596,16 @@ class XRwidget(QOpenGLWidget):
         self.gl_fc = QOpenGLFunctions_4_5_Compatibility()
         self.gl_fc.initializeOpenGLFunctions()
         self.logger.debug("The widget's OpenGL context: %s", self.context())
-        self.logger.debug("Are the contexts sharing: %s", QOpenGLContext.areSharing(self.context(), self.ctx))
+        self.logger.debug("Are the contexts sharing: %s",
+                          QOpenGLContext.areSharing(self.context(), self.ctx))
         self.logger.debug("Is the widget valid: %s", self.isValid())
-        self.logger.debug("The widget's texture format: %s", self.textureFormat())
+        self.logger.debug("The widget's texture format: %s",
+                          self.textureFormat())
         if self.logger.level == logging.DEBUG:
             self.gl_logger = QOpenGLDebugLogger(self)
             self.gl_logger.initialize()
             self.gl_logger.messageLogged.connect(self.log_message)
             self.gl_logger.startLogging()
-
 
     def initialize_offsGL(self):
         self.ctx.makeCurrent(self.offs_surface)
@@ -623,7 +624,7 @@ class XRwidget(QOpenGLWidget):
         frmt.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
         frmt.setSamples(self.sample_count)
         self.logger.debug(
-                f"MSAA {self.sample_count}x")
+            f"MSAA {self.sample_count}x")
         frmt.setTextureTarget(GL.GL_TEXTURE_2D)
         self.fbo_msaa = QOpenGLFramebufferObject(w, h, frmt)
         self.fbo_msaa.bind()
@@ -633,7 +634,7 @@ class XRwidget(QOpenGLWidget):
 
         # target framebuffer
         frmt.setSamples(0)
-        #frmt.setAttachment(QOpenGLFramebufferObject.NoAttachment)
+        # frmt.setAttachment(QOpenGLFramebufferObject.NoAttachment)
         self.fbo = QOpenGLFramebufferObject(w, h, frmt)
         self.fbo.bind()
         if not self.fbo.isValid():
@@ -644,7 +645,8 @@ class XRwidget(QOpenGLWidget):
         self.fbo_texture.setFormat(QOpenGLTexture.RGBA8_UNorm)
         self.fbo_texture.allocateStorage()
         self.fbo_texture.create()
-        self.logger.debug("Is mirror texture created: %s", self.fbo_texture.isCreated())
+        self.logger.debug("Is mirror texture created: %s",
+                          self.fbo_texture.isCreated())
         self.fbo.release()
         self.ctx.doneCurrent()
 
@@ -665,20 +667,26 @@ class XRwidget(QOpenGLWidget):
         elif windowing_interface == 'EGL':
             display = EGL.eglGetCurrentDisplay()
             context = EGL.eglGetCurrentContext()
-            self.graphics_binding.context = ctypes.cast(context, ctypes.c_void_p)
-            self.graphics_binding.display = ctypes.cast(display, ctypes.c_void_p)
-            self.graphics_binding.get_proc_address = ctypes.cast(EGL.eglGetProcAddress.load(), xr.PFN_xrEglGetProcAddressMNDX)
+            self.graphics_binding.context = ctypes.cast(
+                context, ctypes.c_void_p)
+            self.graphics_binding.display = ctypes.cast(
+                display, ctypes.c_void_p)
+            self.graphics_binding.get_proc_address = ctypes.cast(
+                EGL.eglGetProcAddress.load(), xr.PFN_xrEglGetProcAddressMNDX)
             config_id = EGL.EGLint()
-            EGL.eglQueryContext(display, context, EGL.EGL_CONFIG_ID, ctypes.byref(config_id))
+            EGL.eglQueryContext(
+                display, context, EGL.EGL_CONFIG_ID, ctypes.byref(config_id))
             num_configs = EGL.EGLint()
             # get number of available configs first
             EGL.eglGetConfigs(display, None, 0, ctypes.byref(num_configs))
             configs = (ctypes.c_void_p * num_configs.value)()
-            EGL.eglGetConfigs(display, configs, num_configs.value, ctypes.byref(num_configs))
+            EGL.eglGetConfigs(display, configs,
+                              num_configs.value, ctypes.byref(num_configs))
             config = None
             for i in range(num_configs.value):
                 current_config_id = EGL.EGLint()
-                EGL.eglGetConfigAttrib(display, configs[i], EGL.EGL_CONFIG_ID, ctypes.byref(current_config_id))
+                EGL.eglGetConfigAttrib(
+                    display, configs[i], EGL.EGL_CONFIG_ID, ctypes.byref(current_config_id))
                 if current_config_id.value == config_id.value:
                     config = configs[i]
                     break
@@ -876,10 +884,14 @@ class XRwidget(QOpenGLWidget):
         valve_index_bindings = [
             xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
             xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
-            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[0]),
-            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[1]),
-            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[0]),
-            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[1]),
             xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
             xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
 
@@ -932,10 +944,14 @@ class XRwidget(QOpenGLWidget):
         oculus_touch_bindings = [
             xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
             xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
-            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[0]),
-            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[1]),
-            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[0]),
-            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[1]),
             xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
             xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
 
@@ -960,10 +976,14 @@ class XRwidget(QOpenGLWidget):
         microsoft_motion_bindings = [
             xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
             xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
-            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[0]),
-            xr.ActionSuggestedBinding(self.x_lever_action, thumbstick_x_path[1]),
-            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[0]),
-            xr.ActionSuggestedBinding(self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[1]),
             xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
             xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
 
@@ -1221,10 +1241,10 @@ class XRwidget(QOpenGLWidget):
         hand = self.secondary_con
         con = self.xr_con[hand]
         # con.hide_ray()
-        far_plane = 1.0 # how far picking should happen - prevent background objects picking
+        far_plane = 1.0  # how far picking should happen - prevent background objects picking
         coin_picked_point, p_coords = con.find_picked_coin_object(
-                self.cam_picking_root, self.pick_vp_reg, self.near_plane, far_plane,
-                self.pick_camera)
+            self.cam_picking_root, self.pick_vp_reg, self.near_plane, far_plane,
+            self.pick_camera)
         if coin_picked_point:
             point_coords = SbVec3f(p_coords)
         else:
@@ -1267,11 +1287,11 @@ class XRwidget(QOpenGLWidget):
         menu_picked_point, menu_picked_p_coords = con.find_picked_coin_object(
             self.edit_menu.get_menu_scenegraph(), self.vp_reg, self.near_plane, self.far_plane)
         if (self.edit_menu.is_hidden()
-        or not docInter.has_obj()):
+                or not docInter.has_obj()):
             # if menu is invisible assume that user finished the last job
             # and wants to select the new object for editing
             if (con.get_buttons_states().grab_ev ==
-                conXR.AnInpEv.JUST_PRESSED):
+                    conXR.AnInpEv.JUST_PRESSED):
                 docInter.clear_selection()
                 docInter.select_object(transform, self.view)
                 # point location have to be transformed from Base::Vector to SbVec3f
@@ -1289,12 +1309,12 @@ class XRwidget(QOpenGLWidget):
                     self.edit_menu.show_menu()
         else:
             if (con.get_buttons_states().grab_ev ==
-                conXR.AnInpEv.JUST_PRESSED):
+                    conXR.AnInpEv.JUST_PRESSED):
                 if not menu_picked_point:
                     # start editing only if the menu wasn't accidentally hit
                     docInter.set_start_edit(transform, self.view)
             elif (con.get_buttons_states().grab_ev ==
-                conXR.AnInpEv.PRESSED):
+                  conXR.AnInpEv.PRESSED):
                 if not menu_picked_point:
                     i_sec = docInter.doc_to_coin_pnt(
                         docInter.update_edit_transf(transform))
@@ -1316,7 +1336,7 @@ class XRwidget(QOpenGLWidget):
                 self.edit_menu.deselect_all_buttons()
                 self.edit_menu.hide_menu()
         elif (con.get_buttons_states().grab_ev ==
-            conXR.AnInpEv.RELEASED):
+              conXR.AnInpEv.RELEASED):
             con.make_ray_red()
             # if there is no intersection with menu, check the scene scenegraph
             if not menu_picked_point:
@@ -1326,10 +1346,10 @@ class XRwidget(QOpenGLWidget):
                     self.near_plane,
                     self.far_plane)
 
-
     # this function selects, then drags a FreeCAD model
     # press trigger to select object
     # move controller with trigger pressed to move the object
+
     def interact_drag_mode(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
@@ -1369,11 +1389,11 @@ class XRwidget(QOpenGLWidget):
         con.make_ray_red()
         if con.get_ray_scenegraph():
             if (con.get_buttons_states().grab_ev ==
-                  conXR.AnInpEv.PRESSED):
+                    conXR.AnInpEv.PRESSED):
                 con.show_ray()
                 # we do not want to pick the old plane while setting the new one location
                 self.geo_prev.make_plane_pickable(False)
-                far_plane = 1.0 # overwrite how far picking should happen
+                far_plane = 1.0  # overwrite how far picking should happen
                 coin_picked_point, p_coords = con.find_picked_coin_object(
                     self.world_separator, self.vp_reg, self.near_plane, far_plane)
                 if coin_picked_point:
@@ -1486,7 +1506,8 @@ class XRwidget(QOpenGLWidget):
             self.edit_menu.close_button.select(False)
         elif (name == "del_obj_button"):
             docInter.delete_sel_obj()
-            self.edit_menu.del_obj_button.select(False) # button not toggleable
+            self.edit_menu.del_obj_button.select(
+                False)  # button not toggleable
         elif (name == "new_body_button"):
             docInter.create_body()
             self.edit_menu.new_body_button.select(False)
@@ -1616,7 +1637,8 @@ class XRwidget(QOpenGLWidget):
                 self.fbo_msaa.bind()
                 w, h = self.render_target_size
                 # "render" to the swapchain image
-                self.gl_ofc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+                self.gl_ofc.glBlendFunc(
+                    GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
                 self.gl_ofc.glEnable(GL.GL_BLEND)
                 self.gl_ofc.glEnable(GL.GL_SCISSOR_TEST)
                 self.gl_ofc.glScissor(0, 0, w // 2, h)
@@ -1700,7 +1722,7 @@ class XRwidget(QOpenGLWidget):
         self.quit = True
         self.ctx.makeCurrent(self.offs_surface)
         if hasattr(self, 'offs_gl_logger'):
-           self.offs_gl_logger.stopLogging()
+            self.offs_gl_logger.stopLogging()
         if self.fbo is not None:
             self.fbo.release()
             self.fbo = None

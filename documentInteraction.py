@@ -222,7 +222,7 @@ def get_selection_label():
             subs = selection[0].SubElementNames
             if len(subs):
                 sub = subs[0]
-            s = "Sel: "+ obj.Name + ", " + sub
+            s = "Sel: "+ obj.Name + ", " + sub + " [Body: " + last_body_used +"]"
     return s
 
 def drag_object(transform):
@@ -510,7 +510,7 @@ def find_add_body():
         body = doc.addObject('PartDesign::Body', 'Body')
         Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
         # special case for Draft Wires, since they are not treated as 2D objects anymore
-        if obj.TypeId == 'Part::FeaturePython':
+        if obj.TypeId == 'Part::FeaturePython' and obj.Shape.ShapeType == 'Face':
             obj.Visibility = False
             obj = Draft.make_sketch(obj, autoconstraints=True)
             curr_obj = obj
