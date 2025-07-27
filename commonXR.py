@@ -542,7 +542,7 @@ class XRwidget(QOpenGLWidget):
             application_version=0,
             engine_name="pyopenxr",
             engine_version=xr.PYOPENXR_CURRENT_API_VERSION,
-            api_version=xr.Version(1, 0, xr.XR_VERSION_PATCH),
+            api_version=xr.Version(1, 1, xr.XR_VERSION_PATCH),
         )
         ici = xr.InstanceCreateInfo(
             application_info=app_info,
@@ -1001,6 +1001,102 @@ class XRwidget(QOpenGLWidget):
                     len(microsoft_motion_bindings))(
                     *
                     microsoft_motion_bindings),
+            ),
+        )
+
+        # Suggest bindings for the Meta Touch Plus Controller.
+        meta_touch_plus_bindings = [
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+        ]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(
+                    self.instance,
+                    "/interaction_profiles/meta/touch_plus_controller",
+                ),
+                count_suggested_bindings=len(meta_touch_plus_bindings),
+                suggested_bindings=(
+                    xr.ActionSuggestedBinding *
+                    len(meta_touch_plus_bindings))(
+                    *
+                    meta_touch_plus_bindings),
+            ),
+        )
+
+        # Suggest bindings for the Meta Touch Pro Controller.
+        meta_touch_pro_bindings = [
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+        ]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(
+                    self.instance,
+                    "/interaction_profiles/meta/touch_pro_controller",
+                ),
+                count_suggested_bindings=len(meta_touch_pro_bindings),
+                suggested_bindings=(
+                    xr.ActionSuggestedBinding *
+                    len(meta_touch_pro_bindings))(
+                    *
+                    meta_touch_pro_bindings),
+            ),
+        )
+
+        # Suggest bindings for the Bytedance PICO 4 Controller.
+        pico4_controller = [
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[0]),
+            xr.ActionSuggestedBinding(
+                self.x_lever_action, thumbstick_x_path[1]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[0]),
+            xr.ActionSuggestedBinding(
+                self.y_lever_action, thumbstick_y_path[1]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+        ]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(
+                    self.instance,
+                    "/interaction_profiles/bytedance/pico4_controller",
+                ),
+                count_suggested_bindings=len(pico4_controller),
+                suggested_bindings=(
+                    xr.ActionSuggestedBinding *
+                    len(pico4_controller))(
+                    *
+                    pico4_controller),
             ),
         )
 
