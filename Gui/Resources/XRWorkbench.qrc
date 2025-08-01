@@ -4,6 +4,7 @@
         <file>icons/Glasses_disabled.svg</file>
         <file>icons/Display_enabled.svg</file>
         <file>icons/Display_disabled.svg</file>
+        <file>icons/TPPCam_toggle.svg</file>
         <file>icons/preferences-xrworkbench.svg</file>
         <file>icons/Reload_scenegraph.svg</file>
         <file>preferences/XRPreferences.ui</file>

@@ -41,6 +41,7 @@ from pivy.coin import SbVec3f
 from pivy.coin import SbMatrix
 from pivy.coin import SoFrustumCamera
 from pivy.coin import SoOrthographicCamera
+from pivy.coin import SoPerspectiveCamera
 from pivy.coin import SbViewportRegion
 from pivy.coin import SoSceneManager
 from pivy.coin import SbColor
@@ -240,6 +241,13 @@ class DockWidget(QDockWidget):
         self.setFloating(False)
         self.showNormal()
 
+    def toggle_tpp_camera(self):
+        if self.xr_widget.tpp_cam_enabled:
+            self.xr_widget.disable_tpp_cam()
+        else:
+            self.unhide_mirror()
+            self.xr_widget.enable_tpp_cam()
+
     def reload_scenegraph(self):
         self.xr_widget.read_preferences()
         self.xr_widget.reload_scenegraph()
@@ -267,6 +275,8 @@ class XRwidget(QOpenGLWidget):
         self.fbo = None
         self.fbo_msaa = None
         self.fbo_texture = None
+        self.fbo_tpp = None
+        self.fbo_tpp_texture = None
         self.quit = False
         self.session_state = xr.SessionState.IDLE
         self.frame_state = xr.FrameState()
@@ -298,6 +308,9 @@ class XRwidget(QOpenGLWidget):
         if log_level == logging.DEBUG:
             frmt.setOption(QSurfaceFormat.DebugContext)
 
+        frmt.setDepthBufferSize(24)
+        self.setFormat(frmt)
+
         # Perform main rendering with QOffscreenSurface in a separate context
         self.ctx = QOpenGLContext()
         self.ctx.setFormat(frmt)
@@ -318,6 +331,10 @@ class XRwidget(QOpenGLWidget):
 
         self.logger.debug("Offscreen OpenGL context: %s", self.ctx)
         self.mirror_window = True
+        self.tracker_support = False
+        self.tpp_cam_enabled = False
+        self.tpp_cam_available = False
+        self.api_version = None # OpenXR version of created Instance
 
         self.hand_count = 2
         self.old_time = 0
@@ -391,6 +408,14 @@ class XRwidget(QOpenGLWidget):
         # default picking radius is 5, and vp region size is equal to the picking diameter
         self.pick_vp_reg = SbViewportRegion(10, 10)
 
+    def setup_tpp_camera(self):
+        self.tppcamera = SoPerspectiveCamera()
+        self.tppcamera.nearDistance.setValue(self.near_plane)
+        self.tppcamera.farDistance.setValue(self.far_plane)
+        # for Pi HQ camera, 6mm focal length
+        self.tppcamera.heightAngle.setValue(42.88 * pi / 180)
+        self.tppcamera.aspectRatio.setValue(6.29 / 4.71)
+
     def setup_scene(self):
         # coin3d setup
         self.vp_reg = SbViewportRegion(
@@ -457,6 +482,48 @@ class XRwidget(QOpenGLWidget):
         self.cam_picking_root.addChild(self.world_separator)
         self.cam_picking_root.addChild(
             self.geo_prev.get_scenegraph())
+
+        # populate only when a tracker with a camera role is detected
+        self.tpp_cam_root = None
+
+    def setup_tpp_camera_scene(self):
+        # TPP camera world
+        self.tpp_cam_root = SoSeparator()
+        self.tpp_cam_root.ref()
+        self.tpp_cgrp = SoGroup()
+        self.tpp_sgrp = SoGroup()
+        self.tpp_cam_root.addChild(self.tpp_cgrp)
+        self.tpp_cgrp.addChild(self.tppcamera)
+        self.tpp_cam_root.addChild(self.tpp_sgrp)
+        self.tpp_sgrp.addChild(self.environ)
+        self.tpp_sgrp.addChild(self.light)
+        for hand in range(len(self.xr_con)):
+            self.tpp_sgrp.addChild(
+                self.xr_con[hand].get_controller_scenegraph())
+            if self.xr_con[hand].get_ray_scenegraph():
+                self.tpp_sgrp.addChild(
+                    self.xr_con[hand].get_ray_scenegraph())
+        self.tpp_sgrp.addChild(
+            self.con_menu.get_menu_scenegraph())
+        self.tpp_sgrp.addChild(self.world_separator)
+        # setup additional framebuffer for the TPP camera
+        self.ctx.makeCurrent(self.offs_surface)
+        w = self.size().width()
+        h = self.size().height()
+        frmt = QOpenGLFramebufferObjectFormat()
+        frmt.setAttachment(QOpenGLFramebufferObject.CombinedDepthStencil)
+        self.fbo_tpp = QOpenGLFramebufferObject(w, h, frmt)
+        self.fbo_tpp.bind()
+        if not self.fbo_tpp.isValid():
+            raise Exception("FBO for TPP Camera is not valid!")
+
+        self.fbo_tpp_texture = QOpenGLTexture(QOpenGLTexture.Target2D)
+        self.fbo_tpp_texture.setSize(w, h)
+        self.fbo_tpp_texture.setFormat(QOpenGLTexture.RGBA8_UNorm)
+        self.fbo_tpp_texture.allocateStorage()
+        self.fbo_tpp_texture.create()
+        self.fbo_tpp.release()
+        self.ctx.doneCurrent()
 
     def setup_controllers(self):
         # initialise scenegraphs for controllers
@@ -530,24 +597,45 @@ class XRwidget(QOpenGLWidget):
         discovered_extensions = xr.enumerate_instance_extension_properties()
         if xr.EXT_DEBUG_UTILS_EXTENSION_NAME not in discovered_extensions:
             self.enable_debug = False
+        if xr.HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME in discovered_extensions:
+            self.tracker_support = True
         requested_extensions = [xr.KHR_OPENGL_ENABLE_EXTENSION_NAME]
         if windowing_interface == 'EGL':
             requested_extensions.append(xr.MNDX_EGL_ENABLE_EXTENSION_NAME)
         if self.enable_debug:
             requested_extensions.append(xr.EXT_DEBUG_UTILS_EXTENSION_NAME)
+        if self.tracker_support:
+            requested_extensions.append(xr.HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME)
         for extension in requested_extensions:
             assert extension in discovered_extensions
+        if pref.preferences().GetBool("UseHighestOpenXR", False):
+            api_version=xr.Version(1, 1, xr.XR_VERSION_PATCH)
+        else:
+            api_version=xr.Version(1, 0, xr.XR_VERSION_PATCH)
         app_info = xr.ApplicationInfo(
             application_name="FreeCAD XR Workbench",
             application_version=0,
             engine_name="pyopenxr",
             engine_version=xr.PYOPENXR_CURRENT_API_VERSION,
-            api_version=xr.Version(1, 1, xr.XR_VERSION_PATCH),
+            api_version=api_version,
         )
-        ici = xr.InstanceCreateInfo(
-            application_info=app_info,
-            enabled_extension_names=requested_extensions,
-        )
+        try:
+            ici = xr.InstanceCreateInfo(
+                application_info=app_info,
+                enabled_extension_names=requested_extensions,
+            )
+            self.instance = xr.create_instance(ici)
+            self.api_version = api_version
+        except Exception:
+            api_version=xr.Version(1, 0, xr.XR_VERSION_PATCH)
+            app_info.api_version = api_version
+            ici = xr.InstanceCreateInfo(
+                application_info=app_info,
+                enabled_extension_names=requested_extensions,
+            )
+            self.instance = xr.create_instance(ici)
+            print ("Falling back to OpenXR", api_version)
+            self.api_version = api_version
         dumci = xr.DebugUtilsMessengerCreateInfoEXT()
         if self.enable_debug:
             dumci.message_severities = ALL_SEVERITIES
@@ -557,7 +645,6 @@ class XRwidget(QOpenGLWidget):
             ici.next = ctypes.cast(
                 ctypes.pointer(dumci),
                 ctypes.c_void_p)  # TODO: yuck
-        self.instance = xr.create_instance(ici)
         # TODO: pythonic wrapper
         self.pxrGetOpenGLGraphicsRequirementsKHR = ctypes.cast(
             xr.get_instance_proc_addr(
@@ -607,6 +694,18 @@ class XRwidget(QOpenGLWidget):
             self.gl_logger.messageLogged.connect(self.log_message)
             self.gl_logger.startLogging()
 
+    def resizeGL(self, w, h):
+        if self.fbo_tpp is not None:
+            frmt =  self.fbo_tpp.format()
+            self.fbo_tpp.release()
+            self.fbo_tpp = QOpenGLFramebufferObject(w, h, frmt)
+            self.fbo_tpp_texture.destroy()
+            self.fbo_tpp_texture = QOpenGLTexture(QOpenGLTexture.Target2D)
+            self.fbo_tpp_texture.setSize(w, h)
+            self.fbo_tpp_texture.setFormat(QOpenGLTexture.RGBA8_UNorm)
+            self.fbo_tpp_texture.allocateStorage()
+            self.fbo_tpp_texture.create()
+
     def initialize_offsGL(self):
         self.ctx.makeCurrent(self.offs_surface)
         self.gl_ofc = QOpenGLFunctions_4_5_Compatibility()
@@ -648,6 +747,9 @@ class XRwidget(QOpenGLWidget):
         self.logger.debug("Is mirror texture created: %s",
                           self.fbo_texture.isCreated())
         self.fbo.release()
+        self.gl_ofc.glBlendFunc(
+            GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+        self.gl_ofc.glEnable(GL.GL_BLEND)
         self.ctx.doneCurrent()
 
     def prepare_window(self):
@@ -1004,101 +1106,103 @@ class XRwidget(QOpenGLWidget):
             ),
         )
 
-        # Suggest bindings for the Meta Touch Plus Controller.
-        meta_touch_plus_bindings = [
-            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
-            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
-            xr.ActionSuggestedBinding(
-                self.x_lever_action, thumbstick_x_path[0]),
-            xr.ActionSuggestedBinding(
-                self.x_lever_action, thumbstick_x_path[1]),
-            xr.ActionSuggestedBinding(
-                self.y_lever_action, thumbstick_y_path[0]),
-            xr.ActionSuggestedBinding(
-                self.y_lever_action, thumbstick_y_path[1]),
-            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
-            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+        if self.api_version.major >= 1 and self.api_version.minor >= 1:
+            self.logger.debug("Version 1.1 interaction profile bindings")
+            # Suggest bindings for the Meta Touch Plus Controller.
+            meta_touch_plus_bindings = [
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[1]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
 
-        ]
-        xr.suggest_interaction_profile_bindings(
-            instance=self.instance,
-            suggested_bindings=xr.InteractionProfileSuggestedBinding(
-                interaction_profile=xr.string_to_path(
-                    self.instance,
-                    "/interaction_profiles/meta/touch_plus_controller",
+            ]
+            xr.suggest_interaction_profile_bindings(
+                instance=self.instance,
+                suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                    interaction_profile=xr.string_to_path(
+                        self.instance,
+                        "/interaction_profiles/meta/touch_plus_controller",
+                    ),
+                    count_suggested_bindings=len(meta_touch_plus_bindings),
+                    suggested_bindings=(
+                        xr.ActionSuggestedBinding *
+                        len(meta_touch_plus_bindings))(
+                        *
+                        meta_touch_plus_bindings),
                 ),
-                count_suggested_bindings=len(meta_touch_plus_bindings),
-                suggested_bindings=(
-                    xr.ActionSuggestedBinding *
-                    len(meta_touch_plus_bindings))(
-                    *
-                    meta_touch_plus_bindings),
-            ),
-        )
+            )
 
-        # Suggest bindings for the Meta Touch Pro Controller.
-        meta_touch_pro_bindings = [
-            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
-            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
-            xr.ActionSuggestedBinding(
-                self.x_lever_action, thumbstick_x_path[0]),
-            xr.ActionSuggestedBinding(
-                self.x_lever_action, thumbstick_x_path[1]),
-            xr.ActionSuggestedBinding(
-                self.y_lever_action, thumbstick_y_path[0]),
-            xr.ActionSuggestedBinding(
-                self.y_lever_action, thumbstick_y_path[1]),
-            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
-            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+            # Suggest bindings for the Meta Touch Pro Controller.
+            meta_touch_pro_bindings = [
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[1]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
 
-        ]
-        xr.suggest_interaction_profile_bindings(
-            instance=self.instance,
-            suggested_bindings=xr.InteractionProfileSuggestedBinding(
-                interaction_profile=xr.string_to_path(
-                    self.instance,
-                    "/interaction_profiles/meta/touch_pro_controller",
+            ]
+            xr.suggest_interaction_profile_bindings(
+                instance=self.instance,
+                suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                    interaction_profile=xr.string_to_path(
+                        self.instance,
+                        "/interaction_profiles/meta/touch_pro_controller",
+                    ),
+                    count_suggested_bindings=len(meta_touch_pro_bindings),
+                    suggested_bindings=(
+                        xr.ActionSuggestedBinding *
+                        len(meta_touch_pro_bindings))(
+                        *
+                        meta_touch_pro_bindings),
                 ),
-                count_suggested_bindings=len(meta_touch_pro_bindings),
-                suggested_bindings=(
-                    xr.ActionSuggestedBinding *
-                    len(meta_touch_pro_bindings))(
-                    *
-                    meta_touch_pro_bindings),
-            ),
-        )
+            )
 
-        # Suggest bindings for the Bytedance PICO 4 Controller.
-        pico4_controller = [
-            xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
-            xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
-            xr.ActionSuggestedBinding(
-                self.x_lever_action, thumbstick_x_path[0]),
-            xr.ActionSuggestedBinding(
-                self.x_lever_action, thumbstick_x_path[1]),
-            xr.ActionSuggestedBinding(
-                self.y_lever_action, thumbstick_y_path[0]),
-            xr.ActionSuggestedBinding(
-                self.y_lever_action, thumbstick_y_path[1]),
-            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
-            xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+            # Suggest bindings for the Bytedance PICO 4 Controller.
+            pico4_controller = [
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[1]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
 
-        ]
-        xr.suggest_interaction_profile_bindings(
-            instance=self.instance,
-            suggested_bindings=xr.InteractionProfileSuggestedBinding(
-                interaction_profile=xr.string_to_path(
-                    self.instance,
-                    "/interaction_profiles/bytedance/pico4_controller",
+            ]
+            xr.suggest_interaction_profile_bindings(
+                instance=self.instance,
+                suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                    interaction_profile=xr.string_to_path(
+                        self.instance,
+                        "/interaction_profiles/bytedance/pico4_controller",
+                    ),
+                    count_suggested_bindings=len(pico4_controller),
+                    suggested_bindings=(
+                        xr.ActionSuggestedBinding *
+                        len(pico4_controller))(
+                        *
+                        pico4_controller),
                 ),
-                count_suggested_bindings=len(pico4_controller),
-                suggested_bindings=(
-                    xr.ActionSuggestedBinding *
-                    len(pico4_controller))(
-                    *
-                    pico4_controller),
-            ),
-        )
+            )
 
         action_space_info = xr.ActionSpaceCreateInfo(
             action=self.pose_action,
@@ -1124,6 +1228,9 @@ class XRwidget(QOpenGLWidget):
             create_info=action_space_info,
         )
 
+        if self.tracker_support:
+            self.prepare_tracker()
+
         xr.attach_session_action_sets(
             session=self.session,
             attach_info=xr.SessionActionSetsAttachInfo(
@@ -1131,6 +1238,47 @@ class XRwidget(QOpenGLWidget):
                 action_sets=ctypes.pointer(self.action_set),
             ),
         )
+
+
+    def prepare_tracker(self):
+        # TPP camera
+        self.tracker_role_paths = [xr.string_to_path(self.instance,
+                                              "/user/vive_tracker_htcx/role/camera")]
+        self.tracker_pose_action = xr.create_action(
+            action_set=self.action_set,
+            create_info=xr.ActionCreateInfo(
+                action_type=xr.ActionType.POSE_INPUT,
+                action_name="tracker_pose",
+                localized_action_name="Tracker Pose",
+                count_subaction_paths=1,
+                subaction_paths=self.tracker_role_paths,
+            ),
+        )
+        # Describe a suggested binding for that action and subaction path
+        suggested_binding_paths = [xr.ActionSuggestedBinding(
+                self.tracker_pose_action,
+                xr.string_to_path(self.instance, "/user/vive_tracker_htcx/role/camera/input/grip/pose")
+        )]
+        xr.suggest_interaction_profile_bindings(
+            instance=self.instance,
+            suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                interaction_profile=xr.string_to_path(self.instance, "/interaction_profiles/htc/vive_tracker_htcx"),
+                count_suggested_bindings=len(suggested_binding_paths),
+                suggested_bindings=suggested_binding_paths,
+            )
+        )
+        # Create action space for locating tracker
+        action_space_info = xr.ActionSpaceCreateInfo(
+            action=self.tracker_pose_action,
+            subaction_path=self.tracker_role_paths[0],
+        )
+
+        assert action_space_info.pose_in_action_space.orientation.w == 1
+        self.tracker_space = xr.create_action_space(
+                session=self.session,
+                create_info=action_space_info,
+            )
+
 
     def update_xr_controls(self):
         hand_count = self.hand_count
@@ -1195,6 +1343,62 @@ class XRwidget(QOpenGLWidget):
                 self.xr_con[hand].update_grab(grab_value)
             else:
                 self.xr_con[hand].hide_controller()
+
+            # Tracker part
+            if self.tracker_support:
+                tracker_pose_state = xr.get_action_state_pose(
+                    session=self.session,
+                    get_info=xr.ActionStateGetInfo(
+                        action=self.tracker_pose_action,
+                        subaction_path=self.tracker_role_paths[0],
+                    ),
+                )
+                # xrSpaceLocation contains "pose" field with position and
+                # orientation
+                tracker_space_location = xr.locate_space(
+                    space=self.tracker_space,
+                    base_space=self.projection_layer.space,
+                    time=self.frame_state.predicted_display_time,
+                )
+                if (tracker_space_location.location_flags &
+                        xr.SPACE_LOCATION_POSITION_VALID_BIT):
+                    self.tpp_cam_available = True
+                    self.update_tpp_camera(tracker_space_location)
+                else:
+                    self.tpp_cam_available = False
+
+    def update_tpp_camera(self, space_location):
+        if self.tpp_cam_available and self.tpp_cam_enabled:
+            if not self.tpp_cam_root:
+                print ("A tracker with CAMERA role has been found")
+                self.setup_tpp_camera()
+                self.setup_tpp_camera_scene()
+            tracker_rot = SbRotation(
+                space_location.pose.orientation.x,
+                space_location.pose.orientation.y,
+                space_location.pose.orientation.z,
+                space_location.pose.orientation.w)
+            tracker_pos = SbVec3f(
+                space_location.pose.position.x,
+                space_location.pose.position.y,
+                space_location.pose.position.z)
+            # print ("Tracker:", tracker_pos.getValue(), tracker_rot.getValue())
+            cam_transform = SoTransform()
+            cam_transform.translation.setValue(
+                self.world_transform.translation.getValue())  # transfer values only
+            cam_transform.rotation.setValue(
+                self.world_transform.rotation.getValue())
+            cam_transform.center.setValue(
+                self.world_transform.center.getValue())
+            tracker_transform = SoTransform()
+            tracker_transform.translation.setValue(tracker_pos)
+            tracker_transform.rotation.setValue(tracker_rot)
+            # combine real tracker and arificial (stick-driven) camera movement
+            cam_transform.combineLeft(tracker_transform)
+            self.tppcamera.orientation.setValue(
+                cam_transform.rotation.getValue())
+            self.tppcamera.position.setValue(
+                cam_transform.translation.getValue())
 
     def poll_xr_events(self):
         while True:
@@ -1724,7 +1928,6 @@ class XRwidget(QOpenGLWidget):
                 self.update_xr_views()
                 ren_timer = QElapsedTimer()
                 ren_timer.start()
-                self.window_fb = self.defaultFramebufferObject()  # widget's (not context) DFO
                 ai = xr.SwapchainImageAcquireInfo(None)
                 swapchain_index = xr.acquire_swapchain_image(
                     self.swapchain, ai)
@@ -1733,12 +1936,9 @@ class XRwidget(QOpenGLWidget):
                 self.fbo_msaa.bind()
                 w, h = self.render_target_size
                 # "render" to the swapchain image
-                self.gl_ofc.glBlendFunc(
-                    GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
-                self.gl_ofc.glEnable(GL.GL_BLEND)
                 self.gl_ofc.glEnable(GL.GL_SCISSOR_TEST)
-                self.gl_ofc.glScissor(0, 0, w // 2, h)
 
+                self.gl_ofc.glScissor(0, 0, w // 2, h)
                 self.vp_reg.setViewportPixels(0, 0, w // 2, h)
                 self.m_sceneManager.setViewportRegion(self.vp_reg)
                 self.m_sceneManager.setSceneGraph(self.root_scene[0])
@@ -1753,7 +1953,6 @@ class XRwidget(QOpenGLWidget):
                 self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
                 self.m_sceneManager.render()
                 self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
-
                 self.gl_ofc.glDisable(GL.GL_SCISSOR_TEST)
 
                 self.fbo.bind()
@@ -1772,26 +1971,53 @@ class XRwidget(QOpenGLWidget):
                 self.fbo.release()
                 self.fbo_msaa.release()
                 if self.mirror_window:
-                    self.fbo.bind()
-                    self.gl_ofc.glCopyTextureSubImage2D(
-                        self.fbo_texture.textureId(),
-                        0,
-                        0, 0,
-                        0, 0,
-                        w, h,
-                    )
-                    self.fbo.release()
+                    if (self.tpp_cam_enabled
+                            and self.tpp_cam_available):
+                        self.fbo_tpp.bind()
+                        w = self.fbo_tpp.size().width()
+                        h = self.fbo_tpp.size().height()
+                        self.vp_reg.setViewportPixels(0, 0, w, h)
+                        self.m_sceneManager.setViewportRegion(self.vp_reg)
+                        self.m_sceneManager.setSceneGraph(self.tpp_cam_root)
+                        self.gl_fc.glEnable(GL.GL_CULL_FACE)
+                        self.gl_fc.glEnable(GL.GL_DEPTH_TEST)
+                        self.m_sceneManager.render()
+                        self.gl_fc.glDisable(GL.GL_CULL_FACE)
+                        self.gl_fc.glDisable(GL.GL_DEPTH_TEST)
+                        self.gl_ofc.glCopyTextureSubImage2D(
+                            self.fbo_tpp_texture.textureId(),
+                            0,
+                            0, 0,
+                            0, 0,
+                            w, h,
+                        )
+                        self.fbo_tpp.release()
+                    else:
+                        self.fbo.bind()
+                        self.gl_ofc.glCopyTextureSubImage2D(
+                            self.fbo_texture.textureId(),
+                            0,
+                            0, 0,
+                            0, 0,
+                            w, h,
+                        )
+                        self.fbo.release()
                     # update the QOpenGLWidget
                     self.update()
                 self.ctx.doneCurrent()
             self.end_xr_frame()
 
     def paintGL(self):
+        if (self.tpp_cam_enabled
+            and self.tpp_cam_available):
+            texture = self.fbo_tpp_texture
+        else:
+            texture = self.fbo_texture
+        QOpenGLFramebufferObject.bindDefault()
         # Since glBlitFramebuffer for blitting FBOs that belong
         # to two different (shared) contexts is not allowed for some implementations,
         # textured quad is used instead.
         # Legacy GL is required by Coin3D already, so it can be used here.
-        QOpenGLFramebufferObject.bindDefault()
         self.gl_fc.glViewport(0, 0, self.size().width(), self.size().height())
         self.gl_fc.glMatrixMode(GL.GL_PROJECTION)
         self.gl_fc.glLoadIdentity()
@@ -1800,7 +2026,7 @@ class XRwidget(QOpenGLWidget):
         self.gl_fc.glLoadIdentity()
         self.gl_fc.glClear(GL.GL_COLOR_BUFFER_BIT)
         self.gl_fc.glEnable(GL.GL_TEXTURE_2D)
-        self.fbo_texture.bind()
+        texture.bind()
         self.gl_fc.glBegin(GL.GL_QUADS)
         self.gl_fc.glTexCoord2f(0.0, 0.0)
         self.gl_fc.glVertex2f(-1.0, -1.0)
@@ -1811,7 +2037,7 @@ class XRwidget(QOpenGLWidget):
         self.gl_fc.glTexCoord2f(0.0, 1.0)
         self.gl_fc.glVertex2f(-1.0, 1.0)
         self.gl_fc.glEnd()
-        self.fbo_texture.release()
+        texture.release()
 
     def terminate(self):
         self.timer.stop()
@@ -1828,6 +2054,12 @@ class XRwidget(QOpenGLWidget):
         if self.fbo_texture is not None:
             self.fbo_texture.destroy()
             self.fbo_texture = None
+        if self.fbo_tpp is not None:
+            self.fbo_tpp.release()
+            self.fbo_tpp = None
+        if self.fbo_tpp_texture is not None:
+            self.fbo_tpp_texture.destroy()
+            self.fbo_tpp_texture = None
         if self.action_set is not None:
             for hand in range(self.hand_count):
                 if self.hand_space[hand] is not None:
@@ -1847,6 +2079,8 @@ class XRwidget(QOpenGLWidget):
             self.instance = None
         for i, rs in enumerate(self.root_scene):
             self.root_scene[i].unref()
+        if self.tpp_cam_root:
+            self.tpp_cam_root.unref()
         self.cam_picking_root.unref()
         self.ctx.doneCurrent()
         self.makeCurrent()
@@ -1861,6 +2095,12 @@ class XRwidget(QOpenGLWidget):
 
     def enable_mirror(self):
         self.mirror_window = True
+
+    def enable_tpp_cam(self):
+        self.tpp_cam_enabled = True
+
+    def disable_tpp_cam(self):
+        self.tpp_cam_enabled = False
 
     def log_message(self, message):
         print(f"Widget's context OpenGL debug: {message.message()}")
@@ -1908,6 +2148,10 @@ def close_xr_mirror():
     if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
         xr_dock_w.hide_mirror()
 
+def toggle_tpp_camera():
+    global xr_dock_w
+    if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
+        xr_dock_w.toggle_tpp_camera()
 
 def reload_scenegraph():
     global xr_dock_w

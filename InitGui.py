@@ -57,8 +57,8 @@ static char * ico_xpm[] = {
         """This function is executed when the workbench is first activated.
         It is executed once in a FreeCAD session followed by the Activated function.
         """
-        import startXR, stopXR, enableMirror, disableMirror, reloadScenegraph # import here all the needed files that create your FreeCAD commands
-        self.list = ["startXR", "stopXR", "enableMirror", "disableMirror", "reloadScenegraph",] # a list of command names created in the line above
+        import startXR, stopXR, enableMirror, disableMirror, reloadScenegraph, toggleTPPCamera # import here all the needed files that create your FreeCAD commands
+        self.list = ["startXR", "stopXR", "enableMirror", "disableMirror", "reloadScenegraph", "toggleTPPCamera",] # a list of command names created in the line above
 
         from PySide.QtCore import QT_TRANSLATE_NOOP
         self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "XR viewer"), self.list) # creates a new toolbar with your commands
