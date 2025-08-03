@@ -52,10 +52,21 @@ class PreferencesPage:
         pref.SetInt("MSAA", msaa_vals[self.form.msaaComboBox.currentIndex()])
         pref.SetBool("MirrorEnable", self.form.mirrEnblCheckBox.isChecked())
         pref.SetBool("DebugEnable", self.form.debugEnblCheckBox.isChecked())
+        pref.SetBool("UseHighestOpenXR", self.form.highestOpenxrCheckBox.isChecked())
         if self.form.movArchRadioButton.isChecked():
             pref.SetString("Movement", "ARCH")
         elif self.form.movFreeRadioButton.isChecked():
             pref.SetString("Movement", "FREE")
+        pref.SetFloat("TPPCamXTransl", self.form.xTransSpinBox.value())
+        pref.SetFloat("TPPCamYTransl", self.form.yTransSpinBox.value())
+        pref.SetFloat("TPPCamZTransl", self.form.zTransSpinBox.value())
+        pref.SetFloat("TPPCamXRot", self.form.xRotSpinBox.value())
+        pref.SetFloat("TPPCamYRot", self.form.yRotSpinBox.value())
+        pref.SetFloat("TPPCamZRot", self.form.zRotSpinBox.value())
+        pref.SetFloat("TPPCamAngleRot", self.form.angleRotSpinBox.value())
+        pref.SetFloat("TPPCamAspectW", self.form.aspectWSpinBox.value())
+        pref.SetFloat("TPPCamAspectH", self.form.aspectHSpinBox.value())
+        pref.SetFloat("TPPCamVFov", self.form.vertFovSpinBox.value())
         global pref_updated
         pref_updated = True
 
@@ -73,6 +84,18 @@ class PreferencesPage:
         mov_str = pref.GetString("Movement", "ARCH")
         self.form.mirrEnblCheckBox.setChecked(pref.GetBool("MirrorEnable", False))
         self.form.debugEnblCheckBox.setChecked(pref.GetBool("DebugEnable", False))
+        self.form.highestOpenxrCheckBox.setChecked(pref.GetBool("UseHighestOpenXR", False))
+        self.form.xTransSpinBox.setValue(pref.GetFloat("TPPCamXTransl", 0.0))
+        self.form.yTransSpinBox.setValue(pref.GetFloat("TPPCamYTransl", 0.0))
+        self.form.zTransSpinBox.setValue(pref.GetFloat("TPPCamZTransl", 0.0))
+        self.form.xRotSpinBox.setValue(pref.GetFloat("TPPCamXRot", 0.0))
+        self.form.yRotSpinBox.setValue(pref.GetFloat("TPPCamYRot", 0.0))
+        self.form.zRotSpinBox.setValue(pref.GetFloat("TPPCamZRot", 1.0))
+        self.form.angleRotSpinBox.setValue(pref.GetFloat("TPPCamAngleRot", 0.0))
+        # defaults based on Pi HQ camera, 6mm focal length
+        self.form.aspectWSpinBox.setValue(pref.GetFloat("TPPCamAspectW", 6.29))
+        self.form.aspectHSpinBox.setValue(pref.GetFloat("TPPCamAspectH", 4.71))
+        self.form.vertFovSpinBox.setValue(pref.GetFloat("TPPCamVFov", 42.88))
         if mov_str == "ARCH":
             self.form.movArchRadioButton.setChecked(True)
         elif mov_str == "FREE":

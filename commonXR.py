@@ -332,6 +332,7 @@ class XRwidget(QOpenGLWidget):
         self.logger.debug("Offscreen OpenGL context: %s", self.ctx)
         self.mirror_window = True
         self.tracker_support = False
+        self.tpp_camera = None
         self.tpp_cam_enabled = False
         self.tpp_cam_available = False
         self.api_version = None # OpenXR version of created Instance
@@ -409,12 +410,13 @@ class XRwidget(QOpenGLWidget):
         self.pick_vp_reg = SbViewportRegion(10, 10)
 
     def setup_tpp_camera(self):
-        self.tppcamera = SoPerspectiveCamera()
-        self.tppcamera.nearDistance.setValue(self.near_plane)
-        self.tppcamera.farDistance.setValue(self.far_plane)
-        # for Pi HQ camera, 6mm focal length
-        self.tppcamera.heightAngle.setValue(42.88 * pi / 180)
-        self.tppcamera.aspectRatio.setValue(6.29 / 4.71)
+        self.tpp_camera = SoPerspectiveCamera()
+        self.tpp_camera.nearDistance.setValue(self.near_plane)
+        self.tpp_camera.farDistance.setValue(self.far_plane)
+        self.tpp_camera.viewportMapping.setValue(
+            SoCamera.CROP_VIEWPORT_FILL_FRAME)
+        # aspect ratio, fov and position setup done in read preferences
+        self.read_preferences()
 
     def setup_scene(self):
         # coin3d setup
@@ -493,7 +495,7 @@ class XRwidget(QOpenGLWidget):
         self.tpp_cgrp = SoGroup()
         self.tpp_sgrp = SoGroup()
         self.tpp_cam_root.addChild(self.tpp_cgrp)
-        self.tpp_cgrp.addChild(self.tppcamera)
+        self.tpp_cgrp.addChild(self.tpp_camera)
         self.tpp_cam_root.addChild(self.tpp_sgrp)
         self.tpp_sgrp.addChild(self.environ)
         self.tpp_sgrp.addChild(self.light)
@@ -586,6 +588,21 @@ class XRwidget(QOpenGLWidget):
         self.con_menu.select_widget_by_name(
             "scale_slider", sf * 100)
         self.con_menu.select_widget_by_name("teleport_mode_button")
+        if self.tpp_camera:
+            self.tpp_camera.heightAngle.setValue(
+                pref.preferences().GetFloat("TPPCamVFov", 42.88) * pi / 180)
+            self.tpp_camera.aspectRatio.setValue(
+                pref.preferences().GetFloat("TPPCamAspectW", 6.29) /
+                pref.preferences().GetFloat("TPPCamAspectH", 4.71))
+            self.cam_tracker_rot = SbRotation(SbVec3f(
+                pref.preferences().GetFloat("TPPCamXRot", 0.0),
+                pref.preferences().GetFloat("TPPCamYRot", 0.0),
+                pref.preferences().GetFloat("TPPCamZRot", 1.0)),
+                pref.preferences().GetFloat("TPPCamAngleRot", 0.0) * pi / 180)
+            self.cam_tracker_transl = SbVec3f(
+                pref.preferences().GetFloat("TPPCamXTransl", 0.0) / 1000,
+                pref.preferences().GetFloat("TPPCamYTransl", 0.0) / 1000,
+                pref.preferences().GetFloat("TPPCamZTransl", 0.0) / 1000)
 
     def reload_scenegraph(self):
         self.view = Gui.ActiveDocument.ActiveView
@@ -609,7 +626,7 @@ class XRwidget(QOpenGLWidget):
         for extension in requested_extensions:
             assert extension in discovered_extensions
         if pref.preferences().GetBool("UseHighestOpenXR", False):
-            api_version=xr.Version(1, 1, xr.XR_VERSION_PATCH)
+            api_version=xr.Version(xr.XR_CURRENT_API_VERSION)
         else:
             api_version=xr.Version(1, 0, xr.XR_VERSION_PATCH)
         app_info = xr.ApplicationInfo(
@@ -1384,21 +1401,15 @@ class XRwidget(QOpenGLWidget):
                 space_location.pose.position.z)
             # print ("Tracker:", tracker_pos.getValue(), tracker_rot.getValue())
             cam_transform = SoTransform()
-            cam_transform.translation.setValue(
-                self.world_transform.translation.getValue())  # transfer values only
-            cam_transform.rotation.setValue(
-                self.world_transform.rotation.getValue())
-            cam_transform.center.setValue(
-                self.world_transform.center.getValue())
+            cam_transform.copyFieldValues(self.world_transform)
             tracker_transform = SoTransform()
-            tracker_transform.translation.setValue(tracker_pos)
-            tracker_transform.rotation.setValue(tracker_rot)
-            # combine real tracker and arificial (stick-driven) camera movement
+            tracker_transform.translation.setValue(self.cam_tracker_transl + tracker_pos)
+            tracker_transform.rotation.setValue(self.cam_tracker_rot * tracker_rot)
             cam_transform.combineLeft(tracker_transform)
-            self.tppcamera.orientation.setValue(
-                cam_transform.rotation.getValue())
-            self.tppcamera.position.setValue(
+            self.tpp_camera.position.setValue(
                 cam_transform.translation.getValue())
+            self.tpp_camera.orientation.setValue(
+                cam_transform.rotation.getValue())
 
     def poll_xr_events(self):
         while True:
@@ -1875,12 +1886,8 @@ class XRwidget(QOpenGLWidget):
                 view_state.pose.position.y,
                 view_state.pose.position.z)  # get global position and orientation for both cameras
             cam_transform = SoTransform()
-            cam_transform.translation.setValue(
-                self.world_transform.translation.getValue())  # transfer values only
-            cam_transform.rotation.setValue(
-                self.world_transform.rotation.getValue())
-            cam_transform.center.setValue(
-                self.world_transform.center.getValue())
+            cam_transform.copyFieldValues( # transfer values only
+                self.world_transform)
             hmd_transform = SoTransform()
             hmd_transform.translation.setValue(self.hmdpos)
             hmd_transform.rotation.setValue(self.hmdrot)
