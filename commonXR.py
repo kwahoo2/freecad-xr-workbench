@@ -235,6 +235,7 @@ class DockWidget(QDockWidget):
         self.hide()
         print(
             "Mirror window is hidden now, modify default behavior in preferences or reopen it manually if needed")
+        print("Reopen the window and click inside it for keyboard navigation")
 
     def unhide_mirror(self):
         self.xr_widget.enable_mirror()
@@ -260,7 +261,6 @@ class XRwidget(QOpenGLWidget):
         self.setAttribute(Qt.WA_DeleteOnClose)
         # keyboard input focus, note: widget must be shown get focus
         self.setFocusPolicy(Qt.ClickFocus)
-        self.grabKeyboard()
 
         self.render_target_size = None
         self.window = None
@@ -594,15 +594,16 @@ class XRwidget(QOpenGLWidget):
             self.tpp_camera.aspectRatio.setValue(
                 pref.preferences().GetFloat("TPPCamAspectW", 6.29) /
                 pref.preferences().GetFloat("TPPCamAspectH", 4.71))
+            # OpenXR coordinates are Y up, Z front, FreeCAD are Z up, Y front
             self.cam_tracker_rot = SbRotation(SbVec3f(
                 pref.preferences().GetFloat("TPPCamXRot", 0.0),
-                pref.preferences().GetFloat("TPPCamYRot", 0.0),
-                pref.preferences().GetFloat("TPPCamZRot", 1.0)),
+                pref.preferences().GetFloat("TPPCamZRot", 0.0),
+                pref.preferences().GetFloat("TPPCamYRot", 1.0)),
                 pref.preferences().GetFloat("TPPCamAngleRot", 0.0) * pi / 180)
             self.cam_tracker_transl = SbVec3f(
                 pref.preferences().GetFloat("TPPCamXTransl", 0.0) / 1000,
-                pref.preferences().GetFloat("TPPCamYTransl", 0.0) / 1000,
-                pref.preferences().GetFloat("TPPCamZTransl", 0.0) / 1000)
+                pref.preferences().GetFloat("TPPCamZTransl", 0.0) / 1000,
+                pref.preferences().GetFloat("TPPCamYTransl", 0.0) / 1000)
 
     def reload_scenegraph(self):
         self.view = Gui.ActiveDocument.ActiveView
@@ -2122,7 +2123,6 @@ class XRwidget(QOpenGLWidget):
 
     def keyReleaseEvent(self, event):
         self.mov_xr.key_released(event.key())
-
 
 xr_dock_w = None
 

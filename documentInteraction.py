@@ -25,7 +25,13 @@ import FreeCAD as App
 import FreeCADGui as Gui
 import Part
 import Draft
-import UtilsAssembly
+
+try:
+    import UtilsAssembly
+    has_utils_assembly = True
+except ImportError:
+    print ("UtilsAssembly not found, functionality will be limited")
+    has_utils_assembly = False
 
 from enum import Enum
 import math
@@ -235,8 +241,9 @@ def drag_object(transform):
     draggable_obj_plac = plt_con * old_obj_plac
     if (curr_draggable_obj):
         curr_draggable_obj.Placement = draggable_obj_plac
-        if UtilsAssembly.activeAssembly():
-            UtilsAssembly.activeAssembly().solve()
+        if has_utils_assembly:
+            if UtilsAssembly.activeAssembly():
+                UtilsAssembly.activeAssembly().solve()
     # calculate the selection point new location
     s_pnt = plt_con * sel_pnt
     return s_pnt
