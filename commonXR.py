@@ -1834,6 +1834,22 @@ class XRwidget(QOpenGLWidget):
         self.frame_duration = curr_time - self.old_time
         self.old_time = curr_time
 
+        # additional multiplier if 0 - 1 range is too small
+        aux_mul = 2
+        # translation (movement) speed
+        final_mov_speed = self.frame_duration * \
+            self.user_mov_speed * aux_mul
+        final_rot_speed = self.frame_duration * \
+            self.user_rot_speed * aux_mul
+        # transformation with movement at this particular moment
+        # combine it with existing world transformation
+        self.world_transform.combineLeft(self.mov_xr.calculate_transformation(
+            self.hmdpos, self.hmdrot,
+            self.xr_con[self.primary_con],
+            self.xr_con[self.secondary_con],
+            final_mov_speed, final_rot_speed))
+
+    def update_xr_interaction(self):
         if self.interact_mode == InteractMode.TELEPORT:
             self.check_teleport_jump()
         elif self.interact_mode == InteractMode.LINE_BUILDER:
@@ -1851,21 +1867,6 @@ class XRwidget(QOpenGLWidget):
             self.read_preferences()
             pref.reset_upd_flag()
         self.check_menu_selection()
-
-        # additional multiplier if 0 - 1 range is too small
-        aux_mul = 2
-        # translation (movement) speed
-        final_mov_speed = self.frame_duration * \
-            self.user_mov_speed * aux_mul
-        final_rot_speed = self.frame_duration * \
-            self.user_rot_speed * aux_mul
-        # transformation with movement at this particular moment
-        # combine it with existing world transformation
-        self.world_transform.combineLeft(self.mov_xr.calculate_transformation(
-            self.hmdpos, self.hmdrot,
-            self.xr_con[self.primary_con],
-            self.xr_con[self.secondary_con],
-            final_mov_speed, final_rot_speed))
 
     def update_xr_views(self):
         near_plane = self.near_plane
@@ -1931,9 +1932,10 @@ class XRwidget(QOpenGLWidget):
             return
         if self.start_xr_frame():
             if self.frame_state.should_render:
-                self.update_xr_controls()
                 self.update_xr_movement()
                 self.update_xr_views()
+                self.update_xr_controls() # execute after new velocity calculation in update_xr_movement()
+                self.update_xr_interaction()
                 ren_timer = QElapsedTimer()
                 ren_timer.start()
                 ai = xr.SwapchainImageAcquireInfo(None)
