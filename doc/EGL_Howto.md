@@ -1,4 +1,4 @@
-# Running the XR Workbench on Linux and Wayland
+# Running the XR Workbench on Linux and Wayland (without XWayland)
 
 ## Current state
 
@@ -8,23 +8,7 @@ The FreeCAD XR Workbench can work on Linux without X11, thanks to the EGL interf
 
 * The OpenXR runtime has to support [XrGraphicsBindingEGLMNDX](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XrGraphicsBindingEGLMNDX.html) It is available in SteamVR and Monado. 
 
-* A pyopenxr fork with EGL is needed. It can be installed with:
-
-    ```
-    pip uninstall pyopenxr
-    git clone https://github.com/kwahoo2/pyopenxr.git
-    cd pyopenxr
-    git checkout egl-only
-    pip install .
-    ```
-Note, if you would like to return to the mainline pyopenxr, use:
-
-    ```
-    pip uninstall pyopenxr
-    pip install pyopenxr
-    ```
-
-Please check [that issue,](https://github.com/cmbruns/pyopenxr/issues/118) if the fork is still needed.
+* recent pyopenxr - it supports EGL since version 1.1.5001
 
 * FreeCAD compiled with EGL-ready Coin library.
 

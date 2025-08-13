@@ -57,6 +57,7 @@ try:
     from PySide6.QtOpenGL import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat, QOpenGLTexture
     from PySide6.QtGui import QOpenGLContext, QSurfaceFormat, QOffscreenSurface
     from PySide6.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
+    from PySide6.QtGui import QGuiApplication
     import shiboken6 as shiboken
 except ImportError:
     try:
@@ -65,29 +66,42 @@ except ImportError:
         from PySide2.QtGui import QOpenGLFramebufferObject, QOpenGLFramebufferObjectFormat, QOpenGLTexture
         from PySide2.QtOpenGLFunctions import QOpenGLFunctions_4_5_Compatibility
         from PySide2.QtCore import Qt, QTimer, QElapsedTimer, QObject, SIGNAL
+        from PySide2.QtGui import QGuiApplication
         import shiboken2 as shiboken
     except ImportError:
         raise ImportError("Neither PySide2 nor PySide6 found!")
 
 import platform
+import os
 
 windowing_interface = ""
 
 try:
-    from OpenGL import GL
-    if platform.system() == "Windows":
+    syst = platform.system()
+    platf = QGuiApplication.platformName()
+    if syst == "Windows":
+        from OpenGL import GL
         from OpenGL import WGL
         windowing_interface = "WGL"
-    elif platform.system() == "Linux":
-        try:
+    elif syst == "Linux":
+        # when FreeCAD X11 build is running on top of Wayland
+        # PyOpenGL should use GLX, not default for Wayland EGL
+        if platf == "xcb":
+            os.environ["PYOPENGL_PLATFORM"] = "glx"
+            from OpenGL import GL
             from OpenGL import GLX
             windowing_interface = "GLX"
-        except Exception:
-            try:
-                from OpenGL import EGL
-                windowing_interface = "EGL"
-            except ImportError:
-                print("No Windowing Interface found!")
+        elif platf == "wayland":
+            os.environ["PYOPENGL_PLATFORM"] = "egl"
+            from OpenGL import GL
+            from OpenGL import EGL
+            windowing_interface = "EGL"
+        else:
+            print (f"Unsupported platform: {platf}")
+            raise ImportError
+    else:
+        print(f"Unsupported operating system: {syst}")
+        raise ImportError
 except ImportError:
     raise ImportError("PyOpenGL is required!")
 
@@ -289,14 +303,14 @@ class XRwidget(QOpenGLWidget):
         self.pxrDestroyDebugUtilsMessengerEXT = None
         self.pxrGetOpenGLGraphicsRequirementsKHR = None
         self.graphics_requirements = xr.GraphicsRequirementsOpenGLKHR()
-        if windowing_interface == 'WGL':
+        if windowing_interface == "WGL":
             self.graphics_binding = xr.GraphicsBindingOpenGLWin32KHR()
-        elif windowing_interface == 'GLX':
+        elif windowing_interface == "GLX":
             self.graphics_binding = xr.GraphicsBindingOpenGLXlibKHR()
-        elif windowing_interface == 'EGL':
+        elif windowing_interface == "EGL":
             self.graphics_binding = xr.GraphicsBindingEGLMNDX()
         else:
-            raise NotImplementedError('Unsupported platform')
+            raise NotImplementedError("Unsupported platform")
         logging.basicConfig()
         self.logger = logging.getLogger("FreeCAD XR Workbench")
         self.logger.setLevel(log_level)

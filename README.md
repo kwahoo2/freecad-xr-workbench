@@ -85,10 +85,6 @@ Dragging objects with the motion controller ray is available since 15.12.2024 (3
 
 This version is also required for modelling tools like a [Pad or Pocket.](https://youtu.be/BlZWMUpZ5mU)
 
-## Known issues:
-
-Wayland/EGL support needs additional steps, please check [EGL Howto](doc/EGL_Howto.md)
-
 ## Tips and tricks:
 
 SteamVR:
@@ -101,6 +97,10 @@ Monado with libsurvive works well, including two Lighthouses setup.
 In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 
 `STEAMVR_LH_ENABLE=true monado-service`
+
+Wayland:
+
+Pure Wayland/EGL session may need additional steps, please check [EGL Howto](doc/EGL_Howto.md)
 
 ## License
 
