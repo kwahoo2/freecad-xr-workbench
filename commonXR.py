@@ -1961,6 +1961,8 @@ class XRwidget(QOpenGLWidget):
                 w, h = self.render_target_size
                 # "render" to the swapchain image
                 self.gl_ofc.glEnable(GL.GL_SCISSOR_TEST)
+                self.gl_ofc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+                self.gl_ofc.glEnable(GL.GL_BLEND)
 
                 self.gl_ofc.glScissor(0, 0, w // 2, h)
                 self.vp_reg.setViewportPixels(0, 0, w // 2, h)
