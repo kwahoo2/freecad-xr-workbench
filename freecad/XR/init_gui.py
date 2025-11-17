@@ -20,7 +20,9 @@
 # *                                                                         *
 # ***************************************************************************
 
-import XRWorkbench_rc
+from FreeCADGui import Workbench
+import FreeCADGui as Gui
+from freecad.XR import XRWorkbench_rc
 
 class XRWorkbench (Workbench):
     def __init__(self):
@@ -57,7 +59,7 @@ static char * ico_xpm[] = {
         """This function is executed when the workbench is first activated.
         It is executed once in a FreeCAD session followed by the Activated function.
         """
-        import startXR, stopXR, enableMirror, disableMirror, reloadScenegraph, toggleTPPCamera # import here all the needed files that create your FreeCAD commands
+        from freecad.XR import startXR, stopXR, enableMirror, disableMirror, reloadScenegraph, toggleTPPCamera # import here all the needed files that create your FreeCAD commands
         self.list = ["startXR", "stopXR", "enableMirror", "disableMirror", "reloadScenegraph", "toggleTPPCamera",] # a list of command names created in the line above
 
         from PySide.QtCore import QT_TRANSLATE_NOOP
@@ -65,10 +67,10 @@ static char * ico_xpm[] = {
         self.appendMenu(QT_TRANSLATE_NOOP("Workbench", "XR"), self.list) # creates a new menu
         # self.appendMenu(["An existing Menu", "My submenu"], self.list) # appends a submenu to an existing menu
 
-        import preferences
-        FreeCADGui.addLanguagePath(":/translations")
-        FreeCADGui.addIconPath(":/icons")
-        FreeCADGui.addPreferencePage(
+        from freecad.XR import preferences
+        Gui.addLanguagePath(":/translations")
+        Gui.addIconPath(":/icons")
+        Gui.addPreferencePage(
             preferences.PreferencesPage, QT_TRANSLATE_NOOP("QObject", "XRWorkbench")
         )
 

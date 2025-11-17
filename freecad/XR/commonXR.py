@@ -23,12 +23,12 @@
 # ***************************************************************************
 
 
-import preferences as pref
-import controllerXR as conXR
-import movementXR as movXR
-import menuCoin
-import previewCoin as prCoin
-import documentInteraction as docInter
+import freecad.XR.preferences as pref
+import freecad.XR.controllerXR as conXR
+import freecad.XR.movementXR as movXR
+import freecad.XR.menuCoin as menuCoin
+import freecad.XR.previewCoin as prCoin
+import freecad.XR.documentInteraction as docInter
 from math import tan, pi
 import FreeCADGui as Gui
 from pivy.coin import SoTransform

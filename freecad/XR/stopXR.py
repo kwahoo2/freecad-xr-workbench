@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2024 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -25,27 +25,27 @@ import os
 import FreeCADGui as Gui
 from PySide.QtCore import QT_TRANSLATE_NOOP
 
-import commonXR as cxr
+import freecad.XR.commonXR as cxr
 
 
-class XR_Reload_Scenegraph():
-    """A command opening the XR viewer mirror"""
+class XR_Stop():
+    """A command closing the XR viewer"""
 
     def GetResources(self):
         return {
-            "Pixmap": "Reload_scenegraph.svg",
-            "Accel": "R,S",  # a default shortcut (optional)
-            "MenuText": QT_TRANSLATE_NOOP("XR_ReloadScenegraph", "Reload scenegraph"),
-            "ToolTip": QT_TRANSLATE_NOOP("XR_ReloadScenegraph", "Reloads scenegraph and settings without session restart")}
+            "Pixmap": "Glasses_disabled.svg",
+            "Accel": "X,C",  # a default shortcut (optional)
+            "MenuText": QT_TRANSLATE_NOOP("XR_Stop", "Close XR viewer"),
+            "ToolTip": QT_TRANSLATE_NOOP("XR_Stop", "Stops rendering in VR HMD")}
 
     def Activated(self):
-        cxr.reload_scenegraph()
+        cxr.close_xr_viewer()
         return
 
     def IsActive(self):
         """Here you can define if the command must be active or not (greyed) if certain conditions
         are met or not. This function is optional."""
-        return True
+        return True  # True or False
 
 
-Gui.addCommand("reloadScenegraph", XR_Reload_Scenegraph())
+Gui.addCommand("stopXR", XR_Stop())

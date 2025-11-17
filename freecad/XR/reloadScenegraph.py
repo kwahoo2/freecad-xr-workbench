@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2024 Adrian Przekwas adrian.v.przekwas@gmail.com        *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -25,21 +25,21 @@ import os
 import FreeCADGui as Gui
 from PySide.QtCore import QT_TRANSLATE_NOOP
 
-import commonXR as cxr
+import freecad.XR.commonXR as cxr
 
 
-class XR_Mirror_Enable():
+class XR_Reload_Scenegraph():
     """A command opening the XR viewer mirror"""
 
     def GetResources(self):
         return {
-            "Pixmap": "Display_enabled.svg",
-            "Accel": "M,E",  # a default shortcut (optional)
-            "MenuText": QT_TRANSLATE_NOOP("XR_MirrorEnable", "Enable mirror"),
-            "ToolTip": QT_TRANSLATE_NOOP("XR_MirrorEnable", "Enables the VR view mirroring")}
+            "Pixmap": "Reload_scenegraph.svg",
+            "Accel": "R,S",  # a default shortcut (optional)
+            "MenuText": QT_TRANSLATE_NOOP("XR_ReloadScenegraph", "Reload scenegraph"),
+            "ToolTip": QT_TRANSLATE_NOOP("XR_ReloadScenegraph", "Reloads scenegraph and settings without session restart")}
 
     def Activated(self):
-        cxr.open_xr_mirror()
+        cxr.reload_scenegraph()
         return
 
     def IsActive(self):
@@ -48,4 +48,4 @@ class XR_Mirror_Enable():
         return True
 
 
-Gui.addCommand("enableMirror", XR_Mirror_Enable())
+Gui.addCommand("reloadScenegraph", XR_Reload_Scenegraph())

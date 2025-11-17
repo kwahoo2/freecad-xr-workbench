@@ -1,7 +1,7 @@
 # FreeCAD XR Workbench
 
 A Virtual Reality (OpenXR) workbench written in Python. Aims for easier installation and more flexibility than C++ XR fork.
-More in [Extending Workbench](doc/Extending_Workbench.md).
+More in [Extending Workbench](Resources/doc/Extending_Workbench.md).
 
 [Forum thread](https://forum.freecad.org/viewtopic.php?t=39526)
 
@@ -100,7 +100,7 @@ In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 
 Wayland:
 
-Pure Wayland/EGL session may need additional steps, please check [EGL Howto](doc/EGL_Howto.md)
+Pure Wayland/EGL session may need additional steps, please check [EGL Howto](Resources/doc/EGL_Howto.md)
 
 ## License
 

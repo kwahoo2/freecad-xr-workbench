@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2025 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -25,21 +25,21 @@ import os
 import FreeCADGui as Gui
 from PySide.QtCore import QT_TRANSLATE_NOOP
 
-import commonXR as cxr
+import freecad.XR.commonXR as cxr
 
 
-class XR_TPPCam_Toggle():
-    """A command toggling beteent viewer mirror and tracked third-person camera"""
+class XR_Mirror_Enable():
+    """A command opening the XR viewer mirror"""
 
     def GetResources(self):
         return {
-            "Pixmap": "TPPCam_toggle.svg",
-            "Accel": "C,T",  # a default shortcut (optional)
-            "MenuText": QT_TRANSLATE_NOOP("XR_TPPCam_Toggle", "Toggle the third-person camera"),
-            "ToolTip": QT_TRANSLATE_NOOP("XR_TPPCam_Toggle", "Toggles the preview window between HMD mirror and third-person camera")}
+            "Pixmap": "Display_enabled.svg",
+            "Accel": "M,E",  # a default shortcut (optional)
+            "MenuText": QT_TRANSLATE_NOOP("XR_MirrorEnable", "Enable mirror"),
+            "ToolTip": QT_TRANSLATE_NOOP("XR_MirrorEnable", "Enables the VR view mirroring")}
 
     def Activated(self):
-        cxr.toggle_tpp_camera()
+        cxr.open_xr_mirror()
         return
 
     def IsActive(self):
@@ -48,4 +48,4 @@ class XR_TPPCam_Toggle():
         return True
 
 
-Gui.addCommand("toggleTPPCamera", XR_TPPCam_Toggle())
+Gui.addCommand("enableMirror", XR_Mirror_Enable())
