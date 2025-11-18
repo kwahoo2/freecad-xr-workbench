@@ -1,4 +1,4 @@
-# FreeCAD XR Workbench
+# Virtual Reality
 
 A Virtual Reality (OpenXR) workbench written in Python. Aims for easier installation and more flexibility than C++ XR fork.
 More in [Extending Workbench](Resources/doc/Extending_Workbench.md).

@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no" ?>
 <package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
 
-  <name>XR Virtual Reality Workbench</name>
+  <name>Virtual Reality</name>
+
+  <tag>VR</tag>
+  <tag>Virtual Reality</tag>
+  <tag>OpenXR</tag>
 
   <description>A Virtual Reality (OpenXR) workbench. View your models with VR goggles.</description>
 
-  <version>0.9.96</version>
+  <version>0.9.97</version>
 
-  <date>2025-08-13</date>
+  <date>2025-11-18</date>
 
   <maintainer email="adrian.v.przekwas@gmail.com">Adrian Przekwas</maintainer>
 
@@ -17,7 +21,13 @@
 
   <url branch="main" type="repository">https://github.com/kwahoo2/freecad-xr-workbench</url>
 
-  <url type="readme">https://github.com/kwahoo2/freecad-xr-workbench/blob/main/README.md</url>
+  <url type="readme">https://github.com/kwahoo2/freecad-xr-workbench/blob/main/README-Addon.md</url>
+
+  <url type="discussion">https://forum.freecad.org/viewtopic.php?t=39526</url>
+
+  <url type="bugtracker">https://github.com/kwahoo2/freecad-xr-workbench/issues</url>
+
+  <url type="documentation">https://github.com/kwahoo2/freecad-xr-workbench/tree/ec7591407cdca6d69271ac58bfa31e2c64a6b139/Resources/doc</url>
 
   <icon>Gui/Resources/icons/preferences-xrworkbench.svg</icon>
 
