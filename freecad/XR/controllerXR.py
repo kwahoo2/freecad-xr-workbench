@@ -87,11 +87,11 @@ class xrController:
         # Read the file
         if self.iden == 0:
             con_node = self.read_file(os.path.join(
-                os.path.dirname(__file__), "controllers", "left_con.iv")
+                os.path.dirname(__file__), "..", "..", "Resources", "controllers", "left_con.iv")
             )
         if self.iden == 1:
             con_node = self.read_file(os.path.join(
-                os.path.dirname(__file__), "controllers", "right_con.iv")
+                os.path.dirname(__file__), "..", "..", "Resources", "controllers", "right_con.iv")
             )
         if (con_node is None):
             con_node = SoSeparator()
