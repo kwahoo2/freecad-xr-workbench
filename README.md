@@ -26,7 +26,6 @@ an example:
 Note: the OpenXR has to support [XR_KHR_opengl_enable](https://registry.khronos.org/OpenXR/specs/1.1/man/html/XR_KHR_opengl_enable.html) extension. List of runtimes that support this extension [can be found here.](https://github.khronos.org/OpenXR-Inventory/extension_support.html#XR_KHR_opengl_enable)
 
 
-
 #### Python libraries
 
 * pyopenxr
@@ -50,11 +49,11 @@ Copy the `freecad-xr-workbench` directory to FreeCAD's `Mod` directory:
 
 See also: [FreeCAD Wiki: Installing more workbenches](https://wiki.freecad.org/Installing_more_workbenches)
 
-A new `XR` workbench will appear.
+A new `Virtual Reality` workbench will appear.
 
 ## Movement in the 3D space
 
-The XR workbench can use two motion controllers to introduce artificial movement on top of the room-scale (real world) movement. There are two modes (select one in Edit->Preferences->XRWorkbench):
+The Virtual Reality workbench can use two motion controllers to introduce artificial movement on top of the room-scale (real world) movement. There are two modes (select one in Edit->Preferences->Virtual Reality):
 
 ### Arch-like movement:
 * analog stick/trackpad of the primary (default left) controller moves viewer up/down and left/right,

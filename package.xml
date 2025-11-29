@@ -9,9 +9,9 @@
 
   <description>A Virtual Reality (OpenXR) workbench. View your models with VR goggles.</description>
 
-  <version>0.9.97</version>
+  <version>0.9.98</version>
 
-  <date>2025-11-18</date>
+  <date>2025-11-29</date>
 
   <maintainer email="adrian.v.przekwas@gmail.com">Adrian Przekwas</maintainer>
 
@@ -29,7 +29,7 @@
 
   <url type="documentation">https://github.com/kwahoo2/freecad-xr-workbench/tree/ec7591407cdca6d69271ac58bfa31e2c64a6b139/Resources/doc</url>
 
-  <icon>Gui/Resources/icons/preferences-xrworkbench.svg</icon>
+  <icon>Gui/Resources/icons/preferences-virtual_reality.svg</icon>
 
   <content>
     <workbench>

@@ -14,7 +14,7 @@ Note: the OpenXR runtime has to support [XR_KHR_opengl_enable](https://registry.
 
 ## Movement in the 3D space
 
-The XR workbench can use two motion controllers to introduce artificial movement on top of the room-scale (real world) movement. There are two modes (select one in Edit->Preferences->XRWorkbench):
+The Virtual Reality workbench can use two motion controllers to introduce artificial movement on top of the room-scale (real world) movement. There are two modes (select one in Edit->Preferences->Virtual Reality):
 
 ### Arch-like movement:
 * analog stick/trackpad of the primary (default left) controller moves viewer up/down and left/right,

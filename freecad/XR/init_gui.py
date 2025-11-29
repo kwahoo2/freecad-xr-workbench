@@ -26,8 +26,8 @@ from freecad.XR import XRWorkbench_rc
 
 class XRWorkbench (Workbench):
     def __init__(self):
-        self.__class__.MenuText = "XR"
-        self.__class__.ToolTip = "XR workbench"
+        self.__class__.MenuText = "Virtual Reality"
+        self.__class__.ToolTip = "Virtual Reality (OpenXR) workbench"
         self.__class__.Icon = """
 /* XPM */
 static char * ico_xpm[] = {
@@ -63,15 +63,15 @@ static char * ico_xpm[] = {
         self.list = ["startXR", "stopXR", "enableMirror", "disableMirror", "reloadScenegraph", "toggleTPPCamera",] # a list of command names created in the line above
 
         from PySide.QtCore import QT_TRANSLATE_NOOP
-        self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "XR viewer"), self.list) # creates a new toolbar with your commands
-        self.appendMenu(QT_TRANSLATE_NOOP("Workbench", "XR"), self.list) # creates a new menu
+        self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "Virtual Reality viewer"), self.list) # creates a new toolbar with your commands
+        self.appendMenu(QT_TRANSLATE_NOOP("Workbench", "Virtual Reality"), self.list) # creates a new menu
         # self.appendMenu(["An existing Menu", "My submenu"], self.list) # appends a submenu to an existing menu
 
         from freecad.XR import preferences
         Gui.addLanguagePath(":/translations")
         Gui.addIconPath(":/icons")
         Gui.addPreferencePage(
-            preferences.PreferencesPage, QT_TRANSLATE_NOOP("QObject", "XRWorkbench")
+            preferences.PreferencesPage, QT_TRANSLATE_NOOP("QObject", "Virtual Reality")
         )
 
 
@@ -86,7 +86,7 @@ static char * ico_xpm[] = {
     def ContextMenu(self, recipient):
         """This function is executed whenever the user right-clicks on screen"""
         # "recipient" will be either "view" or "tree"
-        self.appendContextMenu("XR commands", self.list) # add commands to the context menu
+        self.appendContextMenu("VR commands", self.list) # add commands to the context menu
 
     def GetClassName(self):
         # This function is mandatory if this is a full Python workbench
