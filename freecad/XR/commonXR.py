@@ -1603,7 +1603,7 @@ class XRwidget(QOpenGLWidget):
             docInter.recompute()
 
     # this function selects a FreeCAD model (document object)
-    # also opens a menu with avaiable actions
+    # also opens a menu with available actions
     def interact_select_mode(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
@@ -1620,7 +1620,7 @@ class XRwidget(QOpenGLWidget):
                     conXR.AnInpEv.JUST_PRESSED):
                 docInter.clear_selection()
                 docInter.select_object(transform, self.view)
-                # point location have to be transformed from Base::Vector to SbVec3f
+                # point location has to be transformed from Base::Vector to SbVec3f
                 # then transformed from XR coordinates to doc coordinates
                 i_sec = docInter.get_sel_sbvec()
                 i_sec_xr = self.get_xr_sbvec(i_sec)

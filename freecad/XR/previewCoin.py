@@ -41,10 +41,10 @@ class coinPreview:
         self.prev_sep.addChild(self.draw_prev_sep)
         self.prev_sep.addChild(self.working_plane_sep)
 
-        # one separator containts objects that can be picked (for snap)
+        # one separator contains objects that can be picked (for snap)
         # other one unpickable objects, only for visualisation
-        # we decide here to not snap to line we are drawing, just to
-        # points at the ends of the finished lines
+        # we decide here to not snap to line we are drawing, instead
+        # to points at the ends of the finished lines
         self.not_pick_sep = SoSeparator()
         unpickable = SoPickStyle()
         unpickable.style = SoPickStyle.UNPICKABLE
@@ -99,7 +99,7 @@ class coinPreview:
     def clean_preview(self):
         self.draw_prev_sep.whichChild = SO_SWITCH_NONE
         self.pline_vtxs.vertex.deleteValues(
-            2)  # do not delete 2 first vertices
+            2)  # do not delete first 2 vertices
         self.pnt_vtxs.vertex.deleteValues(1)
         self.point_counter = 0
 
