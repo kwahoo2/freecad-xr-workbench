@@ -29,6 +29,7 @@ import freecad.XR.movementXR as movXR
 import freecad.XR.menuCoin as menuCoin
 import freecad.XR.previewCoin as prCoin
 import freecad.XR.documentInteraction as docInter
+import freecad.XR.qtWidgetRender as qWRen
 from math import tan, pi
 import FreeCADGui as Gui
 from pivy.coin import SoTransform
@@ -97,7 +98,7 @@ try:
             from OpenGL import EGL
             windowing_interface = "EGL"
         else:
-            print (f"Unsupported platform: {platf}")
+            print(f"Unsupported platform: {platf}")
             raise ImportError
     else:
         print(f"Unsupported operating system: {syst}")
@@ -349,7 +350,7 @@ class XRwidget(QOpenGLWidget):
         self.tpp_camera = None
         self.tpp_cam_enabled = False
         self.tpp_cam_available = False
-        self.api_version = None # OpenXR version of created Instance
+        self.api_version = None  # OpenXR version of created Instance
 
         self.hand_count = 2
         self.old_time = 0
@@ -372,6 +373,7 @@ class XRwidget(QOpenGLWidget):
         self.setup_cameras()
         self.setup_controllers()
         self.setup_menus()
+        self.setup_qt_widgets()  # Qt Widgets rendered in 3D space
         self.setup_scene()  # have to be last, after cameras and controllers setup
         self.read_preferences()  # done after scene and menu init
         self.initialize_offsGL()
@@ -403,8 +405,10 @@ class XRwidget(QOpenGLWidget):
         self.near_plane = 0.01
         self.far_plane = 10000.0
         self.camera = [SoFrustumCamera(), SoFrustumCamera()]
+        # TODO remove reduntancy between hmdrot/hmdpos and hmd_transform
         self.hmdrot = SbRotation()
         self.hmdpos = SbVec3f()
+        self.hmd_transform = SoTransform()
         # 0 - left eye, 1 - right eye
         for eye_index in range(2):
             self.camera[eye_index].viewportMapping.setValue(
@@ -469,6 +473,15 @@ class XRwidget(QOpenGLWidget):
         self.sgrp = [SoGroup(), SoGroup()]  # group for scenegraph
         self.root_scene = [SoSeparator(), SoSeparator()]
         self.cam_picking_root = SoSeparator()
+        self.qt_widgets_separator = SoSeparator()
+        # add 2D Qt widgets
+        # reverse action of the artificial movement
+        self.qt_widgets_separator.addChild(self.world_transform)
+        self.qt_widgets_separator.addChild(
+            self.hmd_transform)  # menus will be glued to head
+        for w in self.qt_widget_renders:
+            self.qt_widgets_separator.addChild(
+                w.get_scenegraph())
         for eye_index in range(2):
             self.root_scene[eye_index].ref()
             self.root_scene[eye_index].addChild(self.cgrp[eye_index])
@@ -493,6 +506,8 @@ class XRwidget(QOpenGLWidget):
             # add geometry preview objects
             self.sgrp[eye_index].addChild(
                 self.geo_prev.get_scenegraph())
+            # add 2D Qt widgets
+            self.sgrp[eye_index].addChild(self.qt_widgets_separator)
         self.cam_picking_root.ref()
         self.cam_picking_root.addChild(self.pick_camera)
         self.cam_picking_root.addChild(self.world_separator)
@@ -572,6 +587,11 @@ class XRwidget(QOpenGLWidget):
         if self.picking_available:
             self.con_menu.add_picking_buttons()
 
+    def setup_qt_widgets(self):
+        # initialize 2D Qt widgets rendering in the 3D space
+        self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.5, 0.5, -2.0)),  # tree view, Model (QDockWidget)
+                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.5, -0.5, -2.0)))  # tasks view, Tasks (QDockWidget)
+
     def read_preferences(self):
         # read from user preferences
         self.user_mov_speed = pref.preferences().GetInt("LinearSpeed", 50) / 100
@@ -637,13 +657,14 @@ class XRwidget(QOpenGLWidget):
         if self.enable_debug:
             requested_extensions.append(xr.EXT_DEBUG_UTILS_EXTENSION_NAME)
         if self.tracker_support:
-            requested_extensions.append(xr.HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME)
+            requested_extensions.append(
+                xr.HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME)
         for extension in requested_extensions:
             assert extension in discovered_extensions
         if pref.preferences().GetBool("UseHighestOpenXR", False):
-            api_version=xr.Version(xr.XR_CURRENT_API_VERSION)
+            api_version = xr.Version(xr.XR_CURRENT_API_VERSION)
         else:
-            api_version=xr.Version(1, 0, xr.XR_VERSION_PATCH)
+            api_version = xr.Version(1, 0, xr.XR_VERSION_PATCH)
         app_info = xr.ApplicationInfo(
             application_name="FreeCAD XR Workbench",
             application_version=0,
@@ -659,14 +680,14 @@ class XRwidget(QOpenGLWidget):
             self.instance = xr.create_instance(ici)
             self.api_version = api_version
         except Exception:
-            api_version=xr.Version(1, 0, xr.XR_VERSION_PATCH)
+            api_version = xr.Version(1, 0, xr.XR_VERSION_PATCH)
             app_info.api_version = api_version
             ici = xr.InstanceCreateInfo(
                 application_info=app_info,
                 enabled_extension_names=requested_extensions,
             )
             self.instance = xr.create_instance(ici)
-            print ("Falling back to OpenXR", api_version)
+            print("Falling back to OpenXR", api_version)
             self.api_version = api_version
         dumci = xr.DebugUtilsMessengerCreateInfoEXT()
         if self.enable_debug:
@@ -728,7 +749,7 @@ class XRwidget(QOpenGLWidget):
 
     def resizeGL(self, w, h):
         if self.fbo_tpp is not None:
-            frmt =  self.fbo_tpp.format()
+            frmt = self.fbo_tpp.format()
             self.fbo_tpp.release()
             self.fbo_tpp = QOpenGLFramebufferObject(w, h, frmt)
             self.fbo_tpp_texture.destroy()
@@ -1152,8 +1173,10 @@ class XRwidget(QOpenGLWidget):
                     self.y_lever_action, thumbstick_y_path[0]),
                 xr.ActionSuggestedBinding(
                     self.y_lever_action, thumbstick_y_path[1]),
-                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
-                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.grab_action, trigger_value_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.grab_action, trigger_value_path[1]),
 
             ]
             xr.suggest_interaction_profile_bindings(
@@ -1184,8 +1207,10 @@ class XRwidget(QOpenGLWidget):
                     self.y_lever_action, thumbstick_y_path[0]),
                 xr.ActionSuggestedBinding(
                     self.y_lever_action, thumbstick_y_path[1]),
-                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
-                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.grab_action, trigger_value_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.grab_action, trigger_value_path[1]),
 
             ]
             xr.suggest_interaction_profile_bindings(
@@ -1216,8 +1241,10 @@ class XRwidget(QOpenGLWidget):
                     self.y_lever_action, thumbstick_y_path[0]),
                 xr.ActionSuggestedBinding(
                     self.y_lever_action, thumbstick_y_path[1]),
-                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
-                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.grab_action, trigger_value_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.grab_action, trigger_value_path[1]),
 
             ]
             xr.suggest_interaction_profile_bindings(
@@ -1271,11 +1298,10 @@ class XRwidget(QOpenGLWidget):
             ),
         )
 
-
     def prepare_tracker(self):
         # TPP camera
         self.tracker_role_paths = [xr.string_to_path(self.instance,
-                                              "/user/vive_tracker_htcx/role/camera")]
+                                                     "/user/vive_tracker_htcx/role/camera")]
         self.tracker_pose_action = xr.create_action(
             action_set=self.action_set,
             create_info=xr.ActionCreateInfo(
@@ -1288,13 +1314,15 @@ class XRwidget(QOpenGLWidget):
         )
         # Describe a suggested binding for that action and subaction path
         suggested_binding_paths = [xr.ActionSuggestedBinding(
-                self.tracker_pose_action,
-                xr.string_to_path(self.instance, "/user/vive_tracker_htcx/role/camera/input/grip/pose")
+            self.tracker_pose_action,
+            xr.string_to_path(
+                self.instance, "/user/vive_tracker_htcx/role/camera/input/grip/pose")
         )]
         xr.suggest_interaction_profile_bindings(
             instance=self.instance,
             suggested_bindings=xr.InteractionProfileSuggestedBinding(
-                interaction_profile=xr.string_to_path(self.instance, "/interaction_profiles/htc/vive_tracker_htcx"),
+                interaction_profile=xr.string_to_path(
+                    self.instance, "/interaction_profiles/htc/vive_tracker_htcx"),
                 count_suggested_bindings=len(suggested_binding_paths),
                 suggested_bindings=suggested_binding_paths,
             )
@@ -1307,10 +1335,9 @@ class XRwidget(QOpenGLWidget):
 
         assert action_space_info.pose_in_action_space.orientation.w == 1
         self.tracker_space = xr.create_action_space(
-                session=self.session,
-                create_info=action_space_info,
-            )
-
+            session=self.session,
+            create_info=action_space_info,
+        )
 
     def update_xr_controls(self):
         hand_count = self.hand_count
@@ -1402,7 +1429,7 @@ class XRwidget(QOpenGLWidget):
     def update_tpp_camera(self, space_location):
         if self.tpp_cam_available and self.tpp_cam_enabled:
             if not self.tpp_cam_root:
-                print ("A tracker with CAMERA role has been found")
+                print("A tracker with CAMERA role has been found")
                 self.setup_tpp_camera()
                 self.setup_tpp_camera_scene()
             tracker_rot = SbRotation(
@@ -1418,8 +1445,10 @@ class XRwidget(QOpenGLWidget):
             cam_transform = SoTransform()
             cam_transform.copyFieldValues(self.world_transform)
             tracker_transform = SoTransform()
-            tracker_transform.translation.setValue(self.cam_tracker_transl + tracker_pos)
-            tracker_transform.rotation.setValue(self.cam_tracker_rot * tracker_rot)
+            tracker_transform.translation.setValue(
+                self.cam_tracker_transl + tracker_pos)
+            tracker_transform.rotation.setValue(
+                self.cam_tracker_rot * tracker_rot)
             cam_transform.combineLeft(tracker_transform)
             self.tpp_camera.position.setValue(
                 cam_transform.translation.getValue())
@@ -1656,7 +1685,7 @@ class XRwidget(QOpenGLWidget):
                 widget = self.edit_menu.find_picked_widget(tail, coords)
                 self.process_edit_selection(widget)
             else:
-                # after finisheing the editing, the user has to select an object again
+                # after finishing the editing, the user has to select an object again
                 # and select the edit mode again - this should reduce confusion about active mode
                 docInter.set_finish_edit()
                 self.edit_menu.deselect_all_buttons()
@@ -1822,6 +1851,10 @@ class XRwidget(QOpenGLWidget):
             self.interact_mode = InteractMode.SELECT_MODE
         elif (name == "pick_drag_button"):
             self.interact_mode = InteractMode.DRAG_MODE
+        elif (name == "toggle_overlay_button"):
+            for w in self.qt_widget_renders:
+                w.toggle_widget()
+            self.con_menu.toggle_overlay_button.select(False)
 
     def process_edit_selection(self, widget):
         if widget == None:
@@ -1841,6 +1874,27 @@ class XRwidget(QOpenGLWidget):
             docInter.create_pad()
         elif (name == "pocket_button"):
             docInter.create_pocket()
+
+    def update_qt_widgets(self):
+        # Qt widgets rendering and click simulation
+        hand = self.secondary_con
+        con = self.xr_con[hand]
+        for w in self.qt_widget_renders:
+            w.swap_texture()  # update 2D widgets render
+            widget_picked_point, widget_picked_p_coords = con.find_picked_coin_object(
+                self.qt_widgets_separator, self.vp_reg, self.near_plane, self.far_plane)
+            if widget_picked_point:
+                con.show_ray()
+                if (con.get_buttons_states().grab_ev ==
+                        conXR.AnInpEv.JUST_PRESSED):
+                    if widget_picked_point:
+                        if con.get_picked_tail() == w.get_widget_tail():  # make sure the correct widget was hit
+                            coords = con.get_picked_tex_coords()
+                            # project click using texture coordinates
+                            w.project_click(coords)
+            else:
+                con.hide_ray()
+        return widget_picked_point
 
     def update_xr_movement(self):
         curr_time = self.frame_state.predicted_display_time / \
@@ -1864,6 +1918,14 @@ class XRwidget(QOpenGLWidget):
             final_mov_speed, final_rot_speed))
 
     def update_xr_interaction(self):
+        if pref.pref_updated:
+            self.read_preferences()
+            pref.reset_upd_flag()
+        self.check_menu_selection()  # quick setting menu, primary (left) controller
+
+        if self.update_qt_widgets():  # Qt widgets renders, secondary controller
+            return
+        # interaction modes, secondary (right) controller
         if self.interact_mode == InteractMode.TELEPORT:
             self.check_teleport_jump()
         elif self.interact_mode == InteractMode.LINE_BUILDER:
@@ -1876,11 +1938,6 @@ class XRwidget(QOpenGLWidget):
             self.interact_drag_mode()
         elif self.interact_mode == InteractMode.WORKING_PLANE:
             self.interact_working_plane()
-
-        if pref.pref_updated:
-            self.read_preferences()
-            pref.reset_upd_flag()
-        self.check_menu_selection()
 
     def update_xr_views(self):
         near_plane = self.near_plane
@@ -1902,13 +1959,12 @@ class XRwidget(QOpenGLWidget):
                 view_state.pose.position.y,
                 view_state.pose.position.z)  # get global position and orientation for both cameras
             cam_transform = SoTransform()
-            cam_transform.copyFieldValues( # transfer values only
+            cam_transform.copyFieldValues(  # transfer values only
                 self.world_transform)
-            hmd_transform = SoTransform()
-            hmd_transform.translation.setValue(self.hmdpos)
-            hmd_transform.rotation.setValue(self.hmdrot)
+            self.hmd_transform.translation.setValue(self.hmdpos)
+            self.hmd_transform.rotation.setValue(self.hmdrot)
             # combine real hmd and arificial (stick-driven) camera movement
-            cam_transform.combineLeft(hmd_transform)
+            cam_transform.combineLeft(self.hmd_transform)
             pfLeft = tan(view_state.fov.angle_left)
             pfRight = tan(view_state.fov.angle_right)
             pfTop = tan(view_state.fov.angle_up)
@@ -1948,7 +2004,8 @@ class XRwidget(QOpenGLWidget):
             if self.frame_state.should_render:
                 self.update_xr_movement()
                 self.update_xr_views()
-                self.update_xr_controls() # execute after new velocity calculation in update_xr_movement()
+                # execute after new velocity calculation in update_xr_movement()
+                self.update_xr_controls()
                 self.update_xr_interaction()
                 ren_timer = QElapsedTimer()
                 ren_timer.start()
@@ -1961,7 +2018,8 @@ class XRwidget(QOpenGLWidget):
                 w, h = self.render_target_size
                 # "render" to the swapchain image
                 self.gl_ofc.glEnable(GL.GL_SCISSOR_TEST)
-                self.gl_ofc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+                self.gl_ofc.glBlendFunc(
+                    GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
                 self.gl_ofc.glEnable(GL.GL_BLEND)
 
                 self.gl_ofc.glScissor(0, 0, w // 2, h)
@@ -2035,7 +2093,7 @@ class XRwidget(QOpenGLWidget):
 
     def paintGL(self):
         if (self.tpp_cam_enabled
-            and self.tpp_cam_available):
+                and self.tpp_cam_available):
             texture = self.fbo_tpp_texture
         else:
             texture = self.fbo_texture
@@ -2142,6 +2200,7 @@ class XRwidget(QOpenGLWidget):
     def keyReleaseEvent(self, event):
         self.mov_xr.key_released(event.key())
 
+
 xr_dock_w = None
 
 
@@ -2173,10 +2232,12 @@ def close_xr_mirror():
     if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
         xr_dock_w.hide_mirror()
 
+
 def toggle_tpp_camera():
     global xr_dock_w
     if shiboken.isValid(xr_dock_w) and xr_dock_w is not None:
         xr_dock_w.toggle_tpp_camera()
+
 
 def reload_scenegraph():
     global xr_dock_w

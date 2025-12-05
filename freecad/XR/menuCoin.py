@@ -349,6 +349,12 @@ class mainCoinMenu(coinMenu):
             SbVec3f(0.5, 0.0, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.toggle_plane_button)
 
+        self.toggle_overlay_button = buttonWidget(
+            "toggle_overlay_button", "Toggle Overlay", 0, 0.2)
+        self.toggle_overlay_button.set_location(
+            SbVec3f(0.5, -0.05, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.toggle_overlay_button)
+
         # add Coin3D representation of every widget
         for w in self.widget_list:
             self.menu_node.addChild(w.get_scenegraph())
