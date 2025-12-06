@@ -1614,6 +1614,7 @@ class XRwidget(QOpenGLWidget):
             self.pick_camera)
         if coin_picked_point:
             point_coords = SbVec3f(p_coords)
+            con.show_ray_ext()
         else:
             point_coords = con.show_ray_ext()
         if (con.get_buttons_states().grab_ev ==

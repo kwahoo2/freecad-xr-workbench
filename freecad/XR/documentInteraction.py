@@ -395,8 +395,11 @@ def update_edit_transf(transform):
         curr_feature_obj.UseCustomVector = True
         # otherwise custom vector would produce wrong length in reality
         # this will not be necessary if the placement of the face is aligned with its vertices
-        curr_feature_obj.AlongSketchNormal = False
-        curr_feature_obj.Length = abs(length)
+        curr_feature_obj.AlongSketchNormal = True
+        abs_length = abs(length)
+        if abs_length < 0.1: # avoid 0 length feature at the start of dragging
+            abs_length = 0.1
+        curr_feature_obj.Length = abs_length
         curr_feature_obj.Direction = normal
         if length > 0:
             curr_feature_obj.Reversed = False
@@ -441,7 +444,8 @@ def set_start_edit(transform, view):
             return
         curr_feature_obj = body.newObject('PartDesign::Pad', 'Pad')
         curr_feature_obj.Profile = (curr_obj, sub_objs)
-        curr_obj.Visibility = False
+        curr_obj.ViewObject.Visibility = False
+        curr_feature_obj.ViewObject.Visibility = True
     elif edit_mode == EditMode.POCKET:
         # subtractive feature cannot be first, so don't allow Body creation
         body = find_body()
@@ -449,7 +453,8 @@ def set_start_edit(transform, view):
             return
         curr_feature_obj = body.newObject('PartDesign::Pocket', 'Pocket')
         curr_feature_obj.Profile = (curr_obj, sub_objs)
-        curr_obj.Visibility = False
+        curr_obj.ViewObject.Visibility = False
+        curr_feature_obj.ViewObject.Visibility = True
     global edit_started
     edit_started = True
 
