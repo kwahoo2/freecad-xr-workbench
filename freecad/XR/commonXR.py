@@ -592,9 +592,10 @@ class XRwidget(QOpenGLWidget):
 
     def setup_qt_widgets(self):
         # initialize 2D Qt widgets rendering in the 3D space
-        self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.5, 0.5, -2.0)),  # tree view, Model (QDockWidget)
+        self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.4, 0.3, -2.0)),  # tree view, Model (QDockWidget)
                                   # tasks view, Tasks (QDockWidget)
-                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.5, -0.5, -2.0)))
+                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.4, -0.3, -2.0)))
+        self.qt_widget_renders[0].change_z_offset(0.1) # move 1 widget closer to the user
 
     def read_preferences(self):
         # read from user preferences
@@ -1897,25 +1898,26 @@ class XRwidget(QOpenGLWidget):
         # Qt widgets rendering and click simulation
         hand = self.secondary_con
         con = self.xr_con[hand]
-        pressed = False
         double_click = False
-        if (con.get_buttons_states().grab_ev ==
-                conXR.AnInpEv.JUST_PRESSED):
-            pressed = True
+        trigger_state = con.get_buttons_states().grab_ev
+        if (trigger_state == conXR.AnInpEv.JUST_PRESSED):
             if not self.double_click_timer.hasExpired(800):  # 0.8s
                 double_click = True
             self.double_click_timer.restart()
+        widget_picked_point, widget_picked_p_coords = con.find_picked_coin_object(
+            self.qt_widgets_separator, self.vp_reg, self.near_plane, self.far_plane)
         for w in self.qt_widget_renders:
             w.swap_texture()  # update 2D widgets render
-            widget_picked_point, widget_picked_p_coords = con.find_picked_coin_object(
-                self.qt_widgets_separator, self.vp_reg, self.near_plane, self.far_plane)
             if widget_picked_point:
                 con.show_ray()
                 # make sure the correct widget was hit
-                if pressed and (con.get_picked_tail() == w.get_widget_tail()):
+                if con.get_picked_tail() == w.get_widget_tail():
+                    w.change_z_offset(0.1) # move picked widget closer to the user
                     coords = con.get_picked_tex_coords()
                     # project click using texture coordinates
-                    w.project_click(coords, double_click)
+                    w.project_click(trigger_state, coords, double_click)
+                else:
+                    w.change_z_offset(0)
             else:
                 con.hide_ray()
         return widget_picked_point
@@ -2054,6 +2056,7 @@ class XRwidget(QOpenGLWidget):
                 self.m_sceneManager.render()
                 self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
 
+                self.gl_ofc.glEnable(GL.GL_BLEND)
                 self.gl_ofc.glScissor(w // 2, 0, w // 2, h)
                 self.vp_reg.setViewportPixels(w // 2, 0, w // 2, h)
                 self.m_sceneManager.setViewportRegion(self.vp_reg)

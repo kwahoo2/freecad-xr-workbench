@@ -23,6 +23,8 @@
 
 import FreeCADGui as Gui
 
+from freecad.XR.controllerXR import AnInpEv # trigger states enum
+
 from PySide.QtWidgets import QApplication, QDockWidget
 from PySide.QtGui import QImage, QPainter, qGray, qRed, qGreen, qBlue, qAlpha, QMouseEvent
 from PySide.QtCore import Qt, QPoint, QTimer, QObject, SIGNAL
@@ -34,7 +36,7 @@ from pivy.coin import SoSwitch, SO_SWITCH_NONE, SO_SWITCH_ALL
 from pivy.coin import SoCoordinate3, SoIndexedFaceSet
 from pivy.coin import SoTransform
 from pivy.coin import SO_END_FACE_INDEX
-from pivy.coin import SoTexture2, SoSFImage, SoTextureCoordinate2
+from pivy.coin import SoTexture2, SoSFImage, SoTextureCoordinate2, SoComplexity
 from pivy.coin import SbVec2s, SbVec3f, SbRotation
 from pivy.coin import SoLightModel, SoPickStyle
 
@@ -54,6 +56,9 @@ class qtWidgetRender:
         self.qt_widget_sep = SoSwitch()
         self.qt_widget_sep.whichChild = SO_SWITCH_NONE
         self.widget_sep.addChild(self.qt_widget_sep)
+
+        # offset to make the widget closer/farther
+        self.z_offset = 0
 
         # render without shading (full bright)
         light_model = SoLightModel()
@@ -80,18 +85,24 @@ class qtWidgetRender:
         ])
         self.qt_widget_sep.addChild(tex_coords)
 
+        # GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR
+        complx = SoComplexity()
+        complx.textureQuality.set('1')
+        self.qt_widget_sep.addChild(complx)
+
+        # add a texture
+        self.texture = SoTexture2()
+        self.qt_widget_sep.addChild(self.texture)
+        self.sosf_img = SoSFImage()
+        self.widget_rendered = False
+
+        # create a face for the texture
         self.widget_face_coords = SoCoordinate3()
         self.qt_widget_sep.addChild(self.widget_face_coords)
         self.face_set = SoIndexedFaceSet()
         self.face_set.coordIndex.setValues(
             0, 5, [0, 1, 2, 3, SO_END_FACE_INDEX])
         self.qt_widget_sep.addChild(self.face_set)
-
-        # add a texture
-        self.texture = SoTexture2()
-        self.qt_widget_sep.insertChild(self.texture, 1)
-        self.sosf_img = SoSFImage()
-        self.widget_rendered = False
 
         # place widget in 3D space
         self.update_widget_transf(pos, SbRotation(SbVec3f(0, 0, 1), 0))
@@ -146,13 +157,16 @@ class qtWidgetRender:
         if rot:
             self.widget_transform.rotation.setValue(rot)
 
+    def change_z_offset(self, offset):
+        self.z_offset = offset
+
     def set_widget_face_size(self):
         w = self.widget.size().width() * self.scale
         h = self.widget.size().height() * self.scale
-        self.widget_face_coords.point.set1Value(0, -w / 2, -h / 2, 0)
-        self.widget_face_coords.point.set1Value(1, w / 2, -h / 2, 0)
-        self.widget_face_coords.point.set1Value(2, w / 2, h / 2, 0)
-        self.widget_face_coords.point.set1Value(3, -w / 2, h / 2, 0)
+        self.widget_face_coords.point.set1Value(0, -w / 2, -h / 2, self.z_offset)
+        self.widget_face_coords.point.set1Value(1, w / 2, -h / 2, self.z_offset)
+        self.widget_face_coords.point.set1Value(2, w / 2, h / 2, self.z_offset)
+        self.widget_face_coords.point.set1Value(3, -w / 2, h / 2, self.z_offset)
 
     def render_widget(self):
         # inspired by:
@@ -190,7 +204,7 @@ class qtWidgetRender:
             self.widget_rendered = False
             self.render_timer.start(widget_update_interval)
 
-    def project_click(self, tex_coords, double_click):
+    def project_click(self, trigger_state, tex_coords, double_click):
         if not self.widget:
             return
         s = self.widget.size()
@@ -202,7 +216,7 @@ class qtWidgetRender:
         target_widget = self.widget.childAt(pos)
         if target_widget:
             pos_on_target = target_widget.mapFromGlobal(glo_pos)
-            if double_click:
+            if double_click and trigger_state == AnInpEv.JUST_PRESSED:
                 press_event = QMouseEvent(
                     QMouseEvent.MouseButtonDblClick,
                     pos_on_target,
@@ -212,20 +226,21 @@ class qtWidgetRender:
                 )
                 QApplication.sendEvent(target_widget, press_event)
             else:
-                press_event = QMouseEvent(
-                    QMouseEvent.MouseButtonPress,
-                    pos_on_target,
-                    Qt.LeftButton,
-                    Qt.LeftButton,
-                    Qt.NoModifier,
-                )
-                QApplication.sendEvent(target_widget, press_event)
-
-                release_event = QMouseEvent(
-                    QMouseEvent.MouseButtonRelease,
-                    pos_on_target,
-                    Qt.LeftButton,
-                    Qt.LeftButton,
-                    Qt.NoModifier,
-                )
-                QApplication.sendEvent(target_widget, release_event)
+                if trigger_state == AnInpEv.JUST_PRESSED:
+                    press_event = QMouseEvent(
+                        QMouseEvent.MouseButtonPress,
+                        pos_on_target,
+                        Qt.LeftButton,
+                        Qt.LeftButton,
+                        Qt.NoModifier,
+                    )
+                    QApplication.sendEvent(target_widget, press_event)
+                elif trigger_state == AnInpEv.JUST_RELEASED:
+                    release_event = QMouseEvent(
+                        QMouseEvent.MouseButtonRelease,
+                        pos_on_target,
+                        Qt.LeftButton,
+                        Qt.LeftButton,
+                        Qt.NoModifier,
+                    )
+                    QApplication.sendEvent(target_widget, release_event)
