@@ -405,7 +405,7 @@ class XRwidget(QOpenGLWidget):
         self.near_plane = 0.01
         self.far_plane = 10000.0
         self.camera = [SoFrustumCamera(), SoFrustumCamera()]
-        # TODO remove reduntancy between hmdrot/hmdpos and hmd_transform
+        # TODO remove redundancy between hmdrot/hmdpos and hmd_transform
         self.hmdrot = SbRotation()
         self.hmdpos = SbVec3f()
         self.hmd_transform = SoTransform()
@@ -590,7 +590,8 @@ class XRwidget(QOpenGLWidget):
     def setup_qt_widgets(self):
         # initialize 2D Qt widgets rendering in the 3D space
         self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.5, 0.5, -2.0)),  # tree view, Model (QDockWidget)
-                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.5, -0.5, -2.0)))  # tasks view, Tasks (QDockWidget)
+                                  # tasks view, Tasks (QDockWidget)
+                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.5, -0.5, -2.0)))
 
     def read_preferences(self):
         # read from user preferences
@@ -1589,6 +1590,17 @@ class XRwidget(QOpenGLWidget):
             vec_doc = mat_t.multMatrixVec(vec)
         return vec_doc
 
+    def get_picked_doc_sbvec(self, controller):
+        # finds picked point with camera pick_camera
+        # that can be used for feeding getObjectInfoRay - useful for lines and points
+        coin_picked_point, p_coords = controller.find_picked_coin_object(
+            self.cam_picking_root, self.pick_vp_reg, self.near_plane, self.far_plane,
+            self.pick_camera)
+        point_coords = None
+        if coin_picked_point:
+            point_coords = self.get_doc_sbvec(SbVec3f(p_coords))
+        return point_coords
+
     # the function creates a polyline with controller trigger
     # press trigger to set point
     # press another controller (the menu one) trigger to finish editing
@@ -1648,7 +1660,8 @@ class XRwidget(QOpenGLWidget):
             if (con.get_buttons_states().grab_ev ==
                     conXR.AnInpEv.JUST_PRESSED):
                 docInter.clear_selection()
-                docInter.select_object(transform, self.view)
+                docInter.select_object(
+                    transform, self.view, self.get_picked_doc_sbvec(con))
                 # point location has to be transformed from Base::Vector to SbVec3f
                 # then transformed from XR coordinates to doc coordinates
                 i_sec = docInter.get_sel_sbvec()
@@ -1712,7 +1725,8 @@ class XRwidget(QOpenGLWidget):
                 conXR.AnInpEv.JUST_PRESSED):
             transform = self.get_doc_transf(con.get_local_transf())
             docInter.clear_selection()
-            docInter.select_object(transform, self.view)
+            docInter.select_object(transform, self.view,
+                                   self.get_picked_doc_sbvec(con))
             i_sec_xr = self.get_xr_sbvec(docInter.get_sel_sbvec())
             if (i_sec_xr):
                 con.make_ray_green()

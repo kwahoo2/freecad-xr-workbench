@@ -147,12 +147,17 @@ def resize_cube(transf):
         cube.Height = lz if lz > 0 else 1
 
 
-def select_object(transform, view):
+def select_object(transform, view, point_coords = None):
     doc = App.ActiveDocument
     rot = transform.rotation.getValue()
     ray_axis = rot.multVec(SbVec3f(0, 0, 1))
     vec_start = coin_to_doc_pnt(transform.translation.getValue())
-    vec_dir = coin_to_doc_pnt(-ray_axis)
+    if point_coords:
+        # overwrite direction, for picking lines and points
+        # selecting them with a controller ray is almost impossible
+        vec_dir = coin_to_doc_pnt(point_coords) - vec_start
+    else:
+        vec_dir = coin_to_doc_pnt(-ray_axis)
     # Document objects picking, Base::Vector is needed, not SbVec3f
     info = view.getObjectInfoRay(vec_start, vec_dir)
     if (info):
