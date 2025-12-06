@@ -388,6 +388,9 @@ class XRwidget(QOpenGLWidget):
         self.timer_gui.start(100)
         print("XR session has started")
 
+        self.double_click_timer = QElapsedTimer()
+        self.double_click_timer.start()
+
     def debug_callback_py(
             self,
             severity: xr.DebugUtilsMessageSeverityFlagsEXT,
@@ -1894,19 +1897,25 @@ class XRwidget(QOpenGLWidget):
         # Qt widgets rendering and click simulation
         hand = self.secondary_con
         con = self.xr_con[hand]
+        pressed = False
+        double_click = False
+        if (con.get_buttons_states().grab_ev ==
+                conXR.AnInpEv.JUST_PRESSED):
+            pressed = True
+            if not self.double_click_timer.hasExpired(800):  # 0.8s
+                double_click = True
+            self.double_click_timer.restart()
         for w in self.qt_widget_renders:
             w.swap_texture()  # update 2D widgets render
             widget_picked_point, widget_picked_p_coords = con.find_picked_coin_object(
                 self.qt_widgets_separator, self.vp_reg, self.near_plane, self.far_plane)
             if widget_picked_point:
                 con.show_ray()
-                if (con.get_buttons_states().grab_ev ==
-                        conXR.AnInpEv.JUST_PRESSED):
-                    if widget_picked_point:
-                        if con.get_picked_tail() == w.get_widget_tail():  # make sure the correct widget was hit
-                            coords = con.get_picked_tex_coords()
-                            # project click using texture coordinates
-                            w.project_click(coords)
+                # make sure the correct widget was hit
+                if pressed and (con.get_picked_tail() == w.get_widget_tail()):
+                    coords = con.get_picked_tex_coords()
+                    # project click using texture coordinates
+                    w.project_click(coords, double_click)
             else:
                 con.hide_ray()
         return widget_picked_point

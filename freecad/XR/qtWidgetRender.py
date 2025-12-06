@@ -190,7 +190,7 @@ class qtWidgetRender:
             self.widget_rendered = False
             self.render_timer.start(widget_update_interval)
 
-    def project_click(self, tex_coords):
+    def project_click(self, tex_coords, double_click):
         if not self.widget:
             return
         s = self.widget.size()
@@ -202,20 +202,30 @@ class qtWidgetRender:
         target_widget = self.widget.childAt(pos)
         if target_widget:
             pos_on_target = target_widget.mapFromGlobal(glo_pos)
-            press_event = QMouseEvent(
-                QMouseEvent.MouseButtonPress,
-                pos_on_target,
-                Qt.LeftButton,
-                Qt.LeftButton,
-                Qt.NoModifier,
-            )
-            QApplication.sendEvent(target_widget, press_event)
+            if double_click:
+                press_event = QMouseEvent(
+                    QMouseEvent.MouseButtonDblClick,
+                    pos_on_target,
+                    Qt.LeftButton,
+                    Qt.LeftButton,
+                    Qt.NoModifier,
+                )
+                QApplication.sendEvent(target_widget, press_event)
+            else:
+                press_event = QMouseEvent(
+                    QMouseEvent.MouseButtonPress,
+                    pos_on_target,
+                    Qt.LeftButton,
+                    Qt.LeftButton,
+                    Qt.NoModifier,
+                )
+                QApplication.sendEvent(target_widget, press_event)
 
-            release_event = QMouseEvent(
-                QMouseEvent.MouseButtonRelease,
-                pos_on_target,
-                Qt.LeftButton,
-                Qt.LeftButton,
-                Qt.NoModifier,
-            )
-            QApplication.sendEvent(target_widget, release_event)
+                release_event = QMouseEvent(
+                    QMouseEvent.MouseButtonRelease,
+                    pos_on_target,
+                    Qt.LeftButton,
+                    Qt.LeftButton,
+                    Qt.NoModifier,
+                )
+                QApplication.sendEvent(target_widget, release_event)
