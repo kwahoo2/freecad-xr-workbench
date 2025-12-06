@@ -179,7 +179,7 @@ class qtWidgetRender:
             return
 
         self.set_widget_face_size()
-        image = QImage(self.widget.size(), QImage.Format_ARGB32)
+        image = QImage(self.widget.size(), QImage.Format_RGBA8888)
         painter = QPainter(image)
         self.widget.render(painter, QPoint(0, 0))
         painter.end()
