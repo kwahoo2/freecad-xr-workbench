@@ -157,7 +157,7 @@ class sliderWidget:
         return self.back_shape
 
 class labelWidget:
-    def __init__(self, name="", text="", width=0.08):
+    def __init__(self, name="", text="", width=0.08, scale=0.002):
         self.name = name
         self.label_sep = SoSeparator()
         self.relativ_loc = SoTransform()
@@ -172,7 +172,7 @@ class labelWidget:
         text_rel_pos.translation.setValue(SbVec3f(-0.4 * width, -0.007, 0.01))
         self.label = SoText3()
         text_scale = SoScale()
-        text_scale.scaleFactor.setValue(SbVec3f(0.002, 0.002, 0.002))
+        text_scale.scaleFactor.setValue(SbVec3f(scale, scale, scale))
         text_color = SoBaseColor()
         text_color.rgb = SbColor(0, 0.2, 0)
         self.label_sep.addChild(text_color)

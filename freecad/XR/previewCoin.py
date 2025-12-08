@@ -21,12 +21,15 @@
 # *                                                                         *
 # ***************************************************************************
 
+from freecad.XR.menuCoin import labelWidget
+
 from pivy.coin import SoSeparator
 from pivy.coin import SoVertexProperty, SoLineSet, SoPointSet
 from pivy.coin import SoSwitch, SoPickStyle, SO_SWITCH_NONE, SO_SWITCH_ALL
 from pivy.coin import SoMaterial, SoCoordinate3, SoIndexedFaceSet
-from pivy.coin import SoTransform
+from pivy.coin import SoTransform, SbRotation
 from pivy.coin import SO_END_FACE_INDEX
+
 
 class coinPreview:
     def __init__(self):
@@ -38,8 +41,12 @@ class coinPreview:
         self.working_plane_sep = SoSwitch()
         self.working_plane_sep.whichChild = SO_SWITCH_NONE
 
+        self.line_labels_sep = SoSwitch()
+        self.line_labels_sep.whichChild = SO_SWITCH_NONE
+
         self.prev_sep.addChild(self.draw_prev_sep)
         self.prev_sep.addChild(self.working_plane_sep)
+        self.prev_sep.addChild(self.line_labels_sep)
 
         # one separator contains objects that can be picked (for snap)
         # other one unpickable objects, only for visualisation
@@ -72,7 +79,7 @@ class coinPreview:
         self.point_counter = 0
 
         # half-transparent working plane implemenentation
-        self.plane_transform =  SoTransform()
+        self.plane_transform = SoTransform()
         self.working_plane_sep.addChild(self.plane_transform)
         self.plane_pickable = SoPickStyle()
         self.plane_pickable.style = SoPickStyle.SHAPE
@@ -93,11 +100,37 @@ class coinPreview:
         faceSet.coordIndex.setValues(0, 5, [0, 1, 2, 3, SO_END_FACE_INDEX])
         self.working_plane_sep.addChild(faceSet)
 
+        # show line verices coordinates and line length
+        self.hmdrot = SbRotation()
+        self.coord_label = labelWidget(text="(0.00, 0.00, 0.00)", scale=0.005)
+        self.line_labels_sep.addChild(self.coord_label.get_scenegraph())
+
+        self.length_label = labelWidget(text="L=0.00", scale=0.005)
+        self.line_labels_sep.addChild(self.length_label.get_scenegraph())
+
     def get_scenegraph(self):
         return self.prev_sep
 
-    def clean_preview(self):
+    def update_hmdrot(self, rot, worldtransform):
+        self.hmdrot = rot * worldtransform.rotation.getValue()
+
+    def update_coord_label(self, vec):
+        self.coord_label.set_text(
+            f'({vec.getValue()[0]:.2f}' + ', ' + f'{vec.getValue()[1]:.2f}' + ', ' + f'{vec.getValue()[2]:.2f})')
+
+    def update_length_label(self, vec_len):
+        self.length_label.set_text(f'L={vec_len:.2f}')
+
+    def get_vertex_pair_pos(self):
+        # returns location of last two vertices, start and end of current edge
+        if self.pline_vtxs:
+            count = self.pline_vtxs.vertex.getNum()
+            return self.pline_vtxs.vertex[count - 2], self.pline_vtxs.vertex[count - 1]
+        return None
+
+    def clean_polyline_preview(self):
         self.draw_prev_sep.whichChild = SO_SWITCH_NONE
+        self.line_labels_sep.whichChild = SO_SWITCH_NONE
         self.pline_vtxs.vertex.deleteValues(
             2)  # do not delete first 2 vertices
         self.pnt_vtxs.vertex.deleteValues(1)
@@ -109,6 +142,7 @@ class coinPreview:
         self.pnt_vtxs.vertex.set1Value(0, vec)
         self.point_counter = 2
         self.draw_prev_sep.whichChild = SO_SWITCH_ALL
+        self.line_labels_sep.whichChild = SO_SWITCH_ALL
 
     def add_polyline_node(self, vec):
         if self.point_counter:
@@ -122,6 +156,10 @@ class coinPreview:
         if self.pline_vtxs:
             count = self.pline_vtxs.vertex.getNum()
             self.pline_vtxs.vertex.set1Value(count - 1, vec)
+            # label near to the vertex
+            self.coord_label.set_location(vec, self.hmdrot)
+            old_vec = self.pline_vtxs.vertex[count - 2]
+            self.length_label.set_location(((vec + old_vec) / 2), self.hmdrot)
 
     def show_working_plane(self):
         self.working_plane_sep.whichChild = SO_SWITCH_ALL

@@ -595,7 +595,8 @@ class XRwidget(QOpenGLWidget):
         self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.4, 0.3, -2.0)),  # tree view, Model (QDockWidget)
                                   # tasks view, Tasks (QDockWidget)
                                   qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.4, -0.3, -2.0)))
-        self.qt_widget_renders[0].change_z_offset(0.1) # move 1 widget closer to the user
+        self.qt_widget_renders[0].change_z_offset(
+            0.1)  # move 1 widget closer to the user
 
     def read_preferences(self):
         # read from user preferences
@@ -1611,7 +1612,15 @@ class XRwidget(QOpenGLWidget):
     def interact_line_builder(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
-        # con.hide_ray()
+        self.geo_prev.update_hmdrot(
+            self.hmdrot, self.world_transform)  # labels facing user
+        start_vtx, end_vtx = self.geo_prev.get_vertex_pair_pos()
+        if start_vtx:
+            start_doc_vtx = self.get_doc_sbvec(start_vtx)
+            end_doc_vtx = self.get_doc_sbvec(end_vtx)
+            diff_doc_vec = end_doc_vtx - start_doc_vtx
+            self.geo_prev.update_coord_label(end_doc_vtx)
+            self.geo_prev.update_length_label(diff_doc_vec.length())
         far_plane = 1.0  # how far picking should happen - prevent background objects picking
         coin_picked_point, p_coords = con.find_picked_coin_object(
             self.cam_picking_root, self.pick_vp_reg, self.near_plane, far_plane,
@@ -1802,7 +1811,7 @@ class XRwidget(QOpenGLWidget):
                 con.show_ray()
                 # when the menu is invoked, current document interaction
                 # like drawing something is accepted and finished
-                self.geo_prev.clean_preview()
+                self.geo_prev.clean_polyline_preview()
                 docInter.finish_building()
             # if pressed
             elif (con.get_buttons_states().grab_ev ==
@@ -1912,7 +1921,8 @@ class XRwidget(QOpenGLWidget):
                 con.show_ray()
                 # make sure the correct widget was hit
                 if con.get_picked_tail() == w.get_widget_tail():
-                    w.change_z_offset(0.1) # move picked widget closer to the user
+                    # move picked widget closer to the user
+                    w.change_z_offset(0.1)
                     coords = con.get_picked_tex_coords()
                     # project click using texture coordinates
                     w.project_click(trigger_state, coords, double_click)
