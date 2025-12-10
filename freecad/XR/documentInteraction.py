@@ -361,6 +361,7 @@ last_body_used = ""
 curr_feature_obj = None
 edit_sel_pnt = None
 edit_started = False
+length = 0
 
 
 def update_edit_transf(transform):
@@ -373,7 +374,7 @@ def update_edit_transf(transform):
     # update original selection point location with controller transformation
     s_pnt = plt_con * edit_sel_pnt
 
-    length = 0
+    global length
     normal = find_normal_sel()
     if normal:
         # we assume the feature is extended in normal direction to selection
@@ -482,6 +483,10 @@ def create_pad():
 def create_pocket():
     global edit_mode
     edit_mode = EditMode.POCKET
+
+
+def get_edit_info():
+    return edit_mode, length
 
 
 def create_body():

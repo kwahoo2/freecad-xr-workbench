@@ -1612,8 +1612,8 @@ class XRwidget(QOpenGLWidget):
     def interact_line_builder(self):
         hand = self.secondary_con
         con = self.xr_con[hand]
-        self.geo_prev.update_hmdrot(
-            self.hmdrot, self.world_transform)  # labels facing user
+        self.geo_prev.update_hmd(
+            self.hmd_transform, self.world_transform)  # labels facing user
         start_vtx, end_vtx = self.geo_prev.get_vertex_pair_pos()
         if start_vtx:
             start_doc_vtx = self.get_doc_sbvec(start_vtx)
@@ -1704,8 +1704,15 @@ class XRwidget(QOpenGLWidget):
                     if i_sec:
                         i_sec_xr = self.get_xr_sbvec(i_sec)
                         con.show_ray_ext(i_sec_xr)
+                        self.geo_prev.update_hmd(
+                            self.hmd_transform, self.world_transform)
+                        edit_mode, length = docInter.get_edit_info()
+                        if edit_mode is not docInter.EditMode.NONE:
+                            self.geo_prev.set_feature_label(
+                                edit_mode, length, i_sec_xr)
         if (con.get_buttons_states().grab_ev ==
                 conXR.AnInpEv.JUST_RELEASED):
+            self.geo_prev.clean_feature_preview()  # hide the label
             if menu_picked_point:
                 tail = con.get_picked_tail()
                 coords = con.get_picked_tex_coords()
@@ -1812,6 +1819,7 @@ class XRwidget(QOpenGLWidget):
                 # when the menu is invoked, current document interaction
                 # like drawing something is accepted and finished
                 self.geo_prev.clean_polyline_preview()
+                self.geo_prev.clean_feature_preview()
                 docInter.finish_building()
             # if pressed
             elif (con.get_buttons_states().grab_ev ==
