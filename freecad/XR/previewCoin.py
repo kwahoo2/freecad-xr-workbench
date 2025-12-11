@@ -39,19 +39,22 @@ class coinPreview:
         self.draw_prev_sep = SoSwitch()
         self.draw_prev_sep.whichChild = SO_SWITCH_NONE
 
-        self.working_plane_sep = SoSwitch()
-        self.working_plane_sep.whichChild = SO_SWITCH_NONE
+        self.working_plane_switch = SoSwitch()
+        self.working_plane_switch.whichChild = SO_SWITCH_NONE
+        # separate working plane to not pollute other nodes with its material
+        self.working_plane_sep = SoSeparator()
+        self.working_plane_switch.addChild(self.working_plane_sep)
 
-        self.line_labels_sep = SoSwitch()
-        self.line_labels_sep.whichChild = SO_SWITCH_NONE
+        self.line_labels_switch = SoSwitch()
+        self.line_labels_switch.whichChild = SO_SWITCH_NONE
 
-        self.feature_labels_sep = SoSwitch()
-        self.feature_labels_sep.whichChild = SO_SWITCH_NONE
+        self.feature_labels_switch = SoSwitch()
+        self.feature_labels_switch.whichChild = SO_SWITCH_NONE
 
         self.prev_sep.addChild(self.draw_prev_sep)
-        self.prev_sep.addChild(self.working_plane_sep)
-        self.prev_sep.addChild(self.line_labels_sep)
-        self.prev_sep.addChild(self.feature_labels_sep)
+        self.prev_sep.addChild(self.working_plane_switch)
+        self.prev_sep.addChild(self.line_labels_switch)
+        self.prev_sep.addChild(self.feature_labels_switch)
 
         # one separator contains objects that can be picked (for snap)
         # other one unpickable objects, only for visualisation
@@ -111,13 +114,13 @@ class coinPreview:
 
         # show line verices coordinates and line length
         self.coord_label = labelWidget(text="(0.00, 0.00, 0.00)", scale=0.005)
-        self.line_labels_sep.addChild(self.coord_label.get_scenegraph())
+        self.line_labels_switch.addChild(self.coord_label.get_scenegraph())
 
         self.length_label = labelWidget(text="L=0.00", scale=0.005)
-        self.line_labels_sep.addChild(self.length_label.get_scenegraph())
+        self.line_labels_switch.addChild(self.length_label.get_scenegraph())
 
         # reuse already created label as a feature label
-        self.feature_labels_sep.addChild(self.length_label.get_scenegraph())
+        self.feature_labels_switch.addChild(self.length_label.get_scenegraph())
 
     def get_scenegraph(self):
         return self.prev_sep
@@ -144,15 +147,15 @@ class coinPreview:
 
     def clean_polyline_preview(self):
         self.draw_prev_sep.whichChild = SO_SWITCH_NONE
-        self.line_labels_sep.whichChild = SO_SWITCH_NONE
-        self.feature_labels_sep.whichChild = SO_SWITCH_NONE
+        self.line_labels_switch.whichChild = SO_SWITCH_NONE
+        self.feature_labels_switch.whichChild = SO_SWITCH_NONE
         self.pline_vtxs.vertex.deleteValues(
             2)  # do not delete first 2 vertices
         self.pnt_vtxs.vertex.deleteValues(1)
         self.point_counter = 0
 
     def clean_feature_preview(self):
-        self.feature_labels_sep.whichChild = SO_SWITCH_NONE
+        self.feature_labels_switch.whichChild = SO_SWITCH_NONE
 
     def add_polyline(self, vec):
         self.pline_vtxs.vertex.set1Value(0, vec)
@@ -160,7 +163,7 @@ class coinPreview:
         self.pnt_vtxs.vertex.set1Value(0, vec)
         self.point_counter = 2
         self.draw_prev_sep.whichChild = SO_SWITCH_ALL
-        self.line_labels_sep.whichChild = SO_SWITCH_ALL
+        self.line_labels_switch.whichChild = SO_SWITCH_ALL
 
     def add_polyline_node(self, vec):
         if self.point_counter:
@@ -181,16 +184,16 @@ class coinPreview:
                 ((vec + old_vec) / 2), self.hmdrot_glob)
 
     def show_working_plane(self):
-        self.working_plane_sep.whichChild = SO_SWITCH_ALL
+        self.working_plane_switch.whichChild = SO_SWITCH_ALL
 
     def hide_working_plane(self):
-        self.working_plane_sep.whichChild = SO_SWITCH_NONE
+        self.working_plane_switch.whichChild = SO_SWITCH_NONE
 
     def toggle_working_plane(self):
-        if self.working_plane_sep.whichChild.getValue() == SO_SWITCH_NONE:
-            self.working_plane_sep.whichChild = SO_SWITCH_ALL
+        if self.working_plane_switch.whichChild.getValue() == SO_SWITCH_NONE:
+            self.working_plane_switch.whichChild = SO_SWITCH_ALL
         else:
-            self.working_plane_sep.whichChild = SO_SWITCH_NONE
+            self.working_plane_switch.whichChild = SO_SWITCH_NONE
 
     def update_working_plane(self, pos, rot):
         self.plane_transform.translation.setValue(pos)
@@ -204,7 +207,7 @@ class coinPreview:
 
     def set_feature_label(self, edit_mode, length, i_sec_xr):
         # label for pads/pockets
-        self.feature_labels_sep.whichChild = SO_SWITCH_ALL
+        self.feature_labels_switch.whichChild = SO_SWITCH_ALL
         if edit_mode == EditMode.PAD:
             self.update_length_label(length, "Pad L=")
         if edit_mode == EditMode.POCKET:
