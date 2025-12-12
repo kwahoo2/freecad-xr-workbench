@@ -23,7 +23,7 @@
 
 import FreeCADGui as Gui
 
-from freecad.XR.controllerXR import AnInpEv # trigger states enum
+from freecad.XR.controllerXR import AnInpEv  # trigger states enum
 
 from PySide.QtWidgets import QApplication, QDockWidget
 from PySide.QtGui import QImage, QPainter, qGray, qRed, qGreen, qBlue, qAlpha, QMouseEvent
@@ -44,13 +44,15 @@ from pivy.coin import SoLightModel, SoPickStyle
 
 widget_update_interval = 0
 
+
 class qtWidgetRender:
     def __init__(self, name,
-                 pos=SbVec3f(0.0, 0.0, -2.0), scale=0.002):
+                 pos=SbVec3f(0.0, 0.0, -0.5), scale=0.001):
         self.widget_sep = SoSeparator()
 
         # 2D Qt widget preview
         self.widget = self.find_widget_by_name(name)
+        self.popups = []  # for comboboxes
         if not self.widget:
             return
         self.qt_widget_sep = SoSwitch()
@@ -163,10 +165,13 @@ class qtWidgetRender:
     def set_widget_face_size(self):
         w = self.widget.size().width() * self.scale
         h = self.widget.size().height() * self.scale
-        self.widget_face_coords.point.set1Value(0, -w / 2, -h / 2, self.z_offset)
-        self.widget_face_coords.point.set1Value(1, w / 2, -h / 2, self.z_offset)
+        self.widget_face_coords.point.set1Value(
+            0, -w / 2, -h / 2, self.z_offset)
+        self.widget_face_coords.point.set1Value(
+            1, w / 2, -h / 2, self.z_offset)
         self.widget_face_coords.point.set1Value(2, w / 2, h / 2, self.z_offset)
-        self.widget_face_coords.point.set1Value(3, -w / 2, h / 2, self.z_offset)
+        self.widget_face_coords.point.set1Value(
+            3, -w / 2, h / 2, self.z_offset)
 
     def render_widget(self):
         # inspired by:
@@ -184,15 +189,27 @@ class qtWidgetRender:
         self.widget.render(painter, QPoint(0, 0))
         painter.end()
 
+        # QComboBoxes are separate popup windows, search for all popups open
+        self.popups = []
+        for w in QApplication.topLevelWidgets():
+            if w.isVisible() and w.windowType() == Qt.Popup:
+                self.popups.append(w)
+                popup_painter = QPainter(image)
+                pos = self.widget.mapFromGlobal(
+                    w.mapToGlobal(w.rect().topLeft()))
+                w.render(popup_painter, pos)
+                popup_painter.end()
+
         ptr = image.constBits()
-        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((image.height(), image.width(), 4))
+        arr = np.frombuffer(ptr, dtype=np.uint8).reshape(
+            (image.height(), image.width(), 4))
 
         # reverse rows, because 0,0 is in left-top for Qt and left-bottom for GL
         arr = arr[::-1, :, :]
 
         byte_list = arr.tobytes()
         size = SbVec2s(image.width(), image.height())
-        numcomponents = 4 # RGBA
+        numcomponents = 4  # RGBA
         self.sosf_img.setValue(size, numcomponents, byte_list)
         self.widget_rendered = True
 
@@ -207,40 +224,44 @@ class qtWidgetRender:
     def project_click(self, trigger_state, tex_coords, double_click):
         if not self.widget:
             return
+        widgets = self.popups  # popups - comboboxes
+        widgets.append(self.widget)  # main widget
         s = self.widget.size()
         u_widget = int(s.width() * tex_coords[0])
         v_widget = int(s.height() * (1 - tex_coords[1]))
-
         pos = QPoint(u_widget, v_widget)
         glo_pos = self.widget.mapToGlobal(pos)
-        target_widget = self.widget.childAt(pos)
-        if target_widget:
-            pos_on_target = target_widget.mapFromGlobal(glo_pos)
-            if double_click and trigger_state == AnInpEv.JUST_PRESSED:
-                press_event = QMouseEvent(
-                    QMouseEvent.MouseButtonDblClick,
-                    pos_on_target,
-                    Qt.LeftButton,
-                    Qt.LeftButton,
-                    Qt.NoModifier,
-                )
-                QApplication.sendEvent(target_widget, press_event)
-            else:
-                if trigger_state == AnInpEv.JUST_PRESSED:
+        for w in widgets:
+            # assuming that all popups are inside the main widget area
+            pos_on_w = w.mapFromGlobal(glo_pos)
+            target_widget = w.childAt(pos_on_w)
+            if target_widget:
+                pos_on_target = target_widget.mapFromGlobal(glo_pos)
+                if double_click and trigger_state == AnInpEv.JUST_PRESSED:
                     press_event = QMouseEvent(
-                        QMouseEvent.MouseButtonPress,
+                        QMouseEvent.MouseButtonDblClick,
                         pos_on_target,
                         Qt.LeftButton,
                         Qt.LeftButton,
                         Qt.NoModifier,
                     )
                     QApplication.sendEvent(target_widget, press_event)
-                elif trigger_state == AnInpEv.JUST_RELEASED:
-                    release_event = QMouseEvent(
-                        QMouseEvent.MouseButtonRelease,
-                        pos_on_target,
-                        Qt.LeftButton,
-                        Qt.LeftButton,
-                        Qt.NoModifier,
-                    )
-                    QApplication.sendEvent(target_widget, release_event)
+                else:
+                    if trigger_state == AnInpEv.JUST_PRESSED:
+                        press_event = QMouseEvent(
+                            QMouseEvent.MouseButtonPress,
+                            pos_on_target,
+                            Qt.LeftButton,
+                            Qt.LeftButton,
+                            Qt.NoModifier,
+                        )
+                        QApplication.sendEvent(target_widget, press_event)
+                    elif trigger_state == AnInpEv.JUST_RELEASED:
+                        release_event = QMouseEvent(
+                            QMouseEvent.MouseButtonRelease,
+                            pos_on_target,
+                            Qt.LeftButton,
+                            Qt.LeftButton,
+                            Qt.NoModifier,
+                        )
+                        QApplication.sendEvent(target_widget, release_event)

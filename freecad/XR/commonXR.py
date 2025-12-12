@@ -478,10 +478,9 @@ class XRwidget(QOpenGLWidget):
         self.cam_picking_root = SoSeparator()
         self.qt_widgets_separator = SoSeparator()
         # add 2D Qt widgets
-        # reverse action of the artificial movement
-        self.qt_widgets_separator.addChild(self.world_transform)
+        # widgets will be glued to the left controller
         self.qt_widgets_separator.addChild(
-            self.hmd_transform)  # menus will be glued to head
+            self.xr_con[self.primary_con].get_global_transf())
         for w in self.qt_widget_renders:
             self.qt_widgets_separator.addChild(
                 w.get_scenegraph())
@@ -509,7 +508,7 @@ class XRwidget(QOpenGLWidget):
             # add geometry preview objects
             self.sgrp[eye_index].addChild(
                 self.geo_prev.get_scenegraph())
-            # add 2D Qt widgets
+            # add 2D Qt widgets to each eye scenegraph
             self.sgrp[eye_index].addChild(self.qt_widgets_separator)
         self.cam_picking_root.ref()
         self.cam_picking_root.addChild(self.pick_camera)
@@ -592,11 +591,11 @@ class XRwidget(QOpenGLWidget):
 
     def setup_qt_widgets(self):
         # initialize 2D Qt widgets rendering in the 3D space
-        self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.4, 0.3, -2.0)),  # tree view, Model (QDockWidget)
+        self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.1, 0.2, -0.5)),  # tree view, Model (QDockWidget)
                                   # tasks view, Tasks (QDockWidget)
-                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.4, -0.3, -2.0)))
+                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.1, -0.2, -0.5)))
         self.qt_widget_renders[0].change_z_offset(
-            0.1)  # move 1 widget closer to the user
+            0.02)  # move 1 widget closer to the user
 
     def read_preferences(self):
         # read from user preferences
@@ -1930,7 +1929,7 @@ class XRwidget(QOpenGLWidget):
                 # make sure the correct widget was hit
                 if con.get_picked_tail() == w.get_widget_tail():
                     # move picked widget closer to the user
-                    w.change_z_offset(0.1)
+                    w.change_z_offset(0.02)
                     coords = con.get_picked_tex_coords()
                     # project click using texture coordinates
                     w.project_click(trigger_state, coords, double_click)
