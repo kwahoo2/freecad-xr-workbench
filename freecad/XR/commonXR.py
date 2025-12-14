@@ -1537,6 +1537,7 @@ class XRwidget(QOpenGLWidget):
                     self.vp_reg,
                     self.near_plane,
                     self.far_plane)
+                con.show_ray()
             elif (con.get_buttons_states().grab_ev ==
                   conXR.AnInpEv.JUST_RELEASED):
                 # just released
