@@ -355,6 +355,12 @@ class mainCoinMenu(coinMenu):
             SbVec3f(0.5, -0.05, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.toggle_overlay_button)
 
+        self.scale_reset_button = buttonWidget(
+            "scale_reset_button", "Reset Scale", 0, 0.2)
+        self.scale_reset_button.set_location(
+            SbVec3f(0.25, 0.25, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.scale_reset_button)
+
         # add Coin3D representation of every widget
         for w in self.widget_list:
             self.menu_node.addChild(w.get_scenegraph())

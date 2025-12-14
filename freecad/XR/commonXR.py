@@ -1890,6 +1890,12 @@ class XRwidget(QOpenGLWidget):
             for w in self.qt_widget_renders:
                 w.toggle_widget()
             self.con_menu.toggle_overlay_button.select(False)
+        elif (name == "scale_reset_button"):
+            sf = 0.001
+            self.doc_xr_transform.scaleFactor.setValue(sf, sf, sf)
+            self.con_menu.select_widget_by_name(
+                "scale_slider", sf * 100)
+            self.con_menu.scale_reset_button.select(False)
 
     def process_edit_selection(self, widget):
         if widget == None:
