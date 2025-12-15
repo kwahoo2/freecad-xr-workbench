@@ -1733,10 +1733,9 @@ class XRwidget(QOpenGLWidget):
             # if there is no intersection with menu, check the scene scenegraph
             if not menu_picked_point:
                 con.find_picked_coin_object(
-                    self.world_separator,
-                    self.vp_reg,
-                    self.near_plane,
-                    self.far_plane)
+                    self.cam_picking_root, self.pick_vp_reg, self.near_plane, self.far_plane,
+                    self.pick_camera)
+
 
     # this function selects, then drags a FreeCAD model
     # press trigger to select object
@@ -1769,10 +1768,8 @@ class XRwidget(QOpenGLWidget):
             con.make_ray_red()
             con.show_ray()
             con.find_picked_coin_object(
-                self.world_separator,
-                self.vp_reg,
-                self.near_plane,
-                self.far_plane)
+                self.cam_picking_root, self.pick_vp_reg, self.near_plane, self.far_plane,
+                self.pick_camera)
 
     def interact_working_plane(self):
         # working plane implementation
@@ -1910,6 +1907,7 @@ class XRwidget(QOpenGLWidget):
             self.edit_menu.close_button.select(False)
         elif (name == "del_obj_button"):
             docInter.delete_sel_obj()
+            docInter.clear_selection()
             self.edit_menu.del_obj_button.select(
                 False)  # button not toggleable
         elif (name == "new_body_button"):

@@ -188,6 +188,20 @@ def select_object(transform, view, point_coords = None):
         if 'SubName' in info:
             sub_n = info['SubName']
         sub_obj = sub_n.split(".")
+        # select body for current object
+        global last_body_used
+        parent_group = curr_obj.getParentGeoFeatureGroup()
+        if parent_group and parent_group.TypeId == 'PartDesign::Body':
+            last_body_used = parent_group.Name
+        else:
+            for s in sub_obj: #  try find body in subname (eg. when body belongs to assembly)
+                o = doc.getObject(s)
+                if o and o.TypeId == 'PartDesign::Body':
+                    last_body_used = o.Name
+                    break
+        body = doc.getObject(last_body_used)
+        if body:
+            Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
         if p_obj:
             if p_obj.TypeId == 'Assembly::AssemblyObject':
                 # find the first non-assembly object
@@ -515,9 +529,8 @@ def delete_sel_obj():
 
 # This checks if an object belongs to a body.
 # If not, it add the object to the last selected body.
-# If no body exists it created one (note this does not search for all
-# bodies, just uses last one created in session).
-
+# If no body exists it creates one.
+# A body can be also also selected and activated during object selection in select_object()
 
 def find_add_body():
     global last_body_used
