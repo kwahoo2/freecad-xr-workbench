@@ -52,9 +52,10 @@ class coinPreview:
         self.feature_labels_switch.whichChild = SO_SWITCH_NONE
 
         self.prev_sep.addChild(self.draw_prev_sep)
-        self.prev_sep.addChild(self.working_plane_switch)
         self.prev_sep.addChild(self.line_labels_switch)
         self.prev_sep.addChild(self.feature_labels_switch)
+        # render WP last, as it is transparent
+        self.prev_sep.addChild(self.working_plane_switch)
 
         # one separator contains objects that can be picked (for snap)
         # other one unpickable objects, only for visualisation
@@ -112,7 +113,7 @@ class coinPreview:
         self.hmdrot_glob = SbRotation()
         self.hmdpos_glob = SbVec3f()
 
-        # show line verices coordinates and line length
+        # show line vertices coordinates and line length
         self.coord_label = labelWidget(text="(0.00, 0.00, 0.00)", scale=0.005)
         self.line_labels_switch.addChild(self.coord_label.get_scenegraph())
 

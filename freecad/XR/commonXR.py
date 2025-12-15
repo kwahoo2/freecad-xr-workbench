@@ -539,6 +539,9 @@ class XRwidget(QOpenGLWidget):
         self.tpp_sgrp.addChild(
             self.con_menu.get_menu_scenegraph())
         self.tpp_sgrp.addChild(self.world_separator)
+        self.tpp_sgrp.addChild(
+            self.geo_prev.get_scenegraph())
+        self.tpp_sgrp.addChild(self.qt_widgets_separator)
         # setup additional framebuffer for the TPP camera
         self.ctx.makeCurrent(self.offs_surface)
         w = self.size().width()
@@ -2111,6 +2114,8 @@ class XRwidget(QOpenGLWidget):
                         self.fbo_tpp.bind()
                         w = self.fbo_tpp.size().width()
                         h = self.fbo_tpp.size().height()
+                        self.gl_fc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+                        self.gl_fc.glEnable(GL.GL_BLEND)
                         self.vp_reg.setViewportPixels(0, 0, w, h)
                         self.m_sceneManager.setViewportRegion(self.vp_reg)
                         self.m_sceneManager.setSceneGraph(self.tpp_cam_root)
