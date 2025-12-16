@@ -240,6 +240,7 @@ def clear_selection():
 def get_selection_label():
     s = ""
     sub = ""
+    body_label = ""
     selection = Gui.Selection.getSelectionEx()
     if len(selection):
         obj = selection[0].Object
@@ -247,7 +248,11 @@ def get_selection_label():
             subs = selection[0].SubElementNames
             if len(subs):
                 sub = subs[0]
-            s = "Sel: "+ obj.Name + ", " + sub + " [Body: " + last_body_used +"]"
+            doc = App.ActiveDocument
+            body = doc.getObject(last_body_used)
+            if body:
+                body_label = body.Label
+            s = "Sel: "+ obj.Name + ", " + sub + " [Body: " + body_label +"]"
     return s
 
 def drag_object(transform):
@@ -463,7 +468,7 @@ def set_start_edit(transform, view):
         curr_feature_obj.ViewObject.Visibility = True
     elif edit_mode == EditMode.POCKET:
         # subtractive feature cannot be first, so don't allow Body creation
-        body = find_body()
+        body = doc.getObject(last_body_used)
         if not curr_obj:
             return
         curr_feature_obj = body.newObject('PartDesign::Pocket', 'Pocket')
@@ -509,13 +514,6 @@ def create_body():
     Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
     global last_body_used
     last_body_used = body.Name
-
-
-def activate_last_body():
-    doc = App.ActiveDocument
-    body = doc.getObject(last_body_used)
-    if body:
-        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
     return body
 
 
@@ -528,63 +526,40 @@ def delete_sel_obj():
         doc.removeObject(obj.Name)
 
 # This checks if an object belongs to a body.
-# If not, it add the object to the last selected body.
+# If not, it adds the object to the last selected body.
 # If no body exists it creates one.
 # A body can be also also selected and activated during object selection in select_object()
 
 def find_add_body():
-    global last_body_used
     global curr_obj
     if curr_obj:
         obj = curr_obj
         doc = App.ActiveDocument
     else:
         return None
-    body = find_body()
+    body = doc.getObject(last_body_used)
+    # create a body if not exists and make it active
     if not body:
-        body = doc.addObject('PartDesign::Body', 'Body')
-        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
-        # special case for Draft Wires, since they are not treated as 2D objects anymore
-        if obj.TypeId == 'Part::FeaturePython' and obj.Shape.ShapeType == 'Face':
-            obj.Visibility = False
-            obj = Draft.make_sketch(obj, autoconstraints=True)
-            curr_obj = obj
-        try:
-            body.addObject(obj)
-        except Exception as e: # some objects, like Part objs cannot be added directly
-            obj.adjustRelativeLinks(body)
-            body.ViewObject.dropObject(obj,None,'',[])
-            clear_selection()
-        last_body_used = body.Name
+        body = create_body()
+    # check if object has a body parent already (do nothing then)
+    parent_group = obj.getParentGeoFeatureGroup()
+    if parent_group and parent_group.TypeId == 'PartDesign::Body':
+        return body
+    # special case for Draft Wires, since they are not treated as 2D objects anymore
+    if obj.TypeId == 'Part::FeaturePython' and obj.Shape.ShapeType == 'Face':
+        obj.Visibility = False
+        obj = Draft.make_sketch(obj, autoconstraints=True)
+        curr_obj = obj
+    try:
+        body.addObject(obj)
+    except Exception as e: # some objects, like Part objs cannot be added directly
+        obj.adjustRelativeLinks(body)
+        body.ViewObject.dropObject(obj,None,'',[])
+        clear_selection()
     return body
 
 
-def find_body():
-    global curr_obj
-    if curr_obj:
-        obj = curr_obj
-        doc = App.ActiveDocument
-    else:
-        return None
-    parent = obj.getParentGeoFeatureGroup()
-    if parent and parent.TypeId == 'PartDesign::Body':
-        return parent
-    else:
-        body = activate_last_body()
-        if body:
-            try:
-                body.addObject(obj)
-            except Exception as e:
-                obj.adjustRelativeLinks(body)
-                body.ViewObject.dropObject(obj,None,'',[])
-                clear_selection()
-            return body
-        else:
-            return None
-
-
-# subtractive features require some solid to sutract from
-
+# subtractive features require some solid to subtract from
 
 def is_body_solid(body):
     if not body:

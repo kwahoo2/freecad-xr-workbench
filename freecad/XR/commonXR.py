@@ -1686,7 +1686,7 @@ class XRwidget(QOpenGLWidget):
                 if i_sec_xr:
                     con.make_ray_green()
                     con.show_ray_ext(i_sec_xr)
-                    # the newly showed menu should be aligned to the selected object
+                    # the newly showed menu is aligned to the controller which selected object
                     pos = con.get_global_transf().translation
                     rot = con.get_global_transf().rotation
                     self.edit_menu.update_label(docInter.get_selection_label())
@@ -1912,6 +1912,7 @@ class XRwidget(QOpenGLWidget):
                 False)  # button not toggleable
         elif (name == "new_body_button"):
             docInter.create_body()
+            self.edit_menu.update_label(docInter.get_selection_label())
             self.edit_menu.new_body_button.select(False)
         elif (name == "pad_button"):
             docInter.create_pad()
