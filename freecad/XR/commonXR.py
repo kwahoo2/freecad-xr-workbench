@@ -426,9 +426,9 @@ class XRwidget(QOpenGLWidget):
         self.pick_camera = SoOrthographicCamera()
         self.pick_camera.near_plane = self.near_plane
         self.pick_camera.far_plane = self.far_plane
-        self.pick_camera.height = 0.1
-        # default picking radius is 5, and vp region size is equal to the picking diameter
-        self.pick_vp_reg = SbViewportRegion(10, 10)
+        self.pick_camera.height = 0.02
+        # default picking radius, it is proportional to camera.height divided by vp region size
+        self.pick_vp_reg = SbViewportRegion(5, 5)
 
     def setup_tpp_camera(self):
         self.tpp_camera = SoPerspectiveCamera()
@@ -1911,7 +1911,7 @@ class XRwidget(QOpenGLWidget):
             self.edit_menu.del_obj_button.select(
                 False)  # button not toggleable
         elif (name == "new_body_button"):
-            docInter.create_body()
+            docInter.create_body(add_obj=True)
             self.edit_menu.update_label(docInter.get_selection_label())
             self.edit_menu.new_body_button.select(False)
         elif (name == "pad_button"):

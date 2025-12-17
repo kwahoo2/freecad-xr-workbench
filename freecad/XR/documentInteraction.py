@@ -508,12 +508,14 @@ def get_edit_info():
     return edit_mode, length
 
 
-def create_body():
+def create_body(add_obj=False):
     doc = App.ActiveDocument
     body = doc.addObject("PartDesign::Body", "Body")
     Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
     global last_body_used
     last_body_used = body.Name
+    if add_obj and curr_obj:
+        add_obj_to_body(curr_obj, body)
     return body
 
 
@@ -531,7 +533,6 @@ def delete_sel_obj():
 # A body can be also also selected and activated during object selection in select_object()
 
 def find_add_body():
-    global curr_obj
     if curr_obj:
         obj = curr_obj
         doc = App.ActiveDocument
@@ -545,19 +546,27 @@ def find_add_body():
     parent_group = obj.getParentGeoFeatureGroup()
     if parent_group and parent_group.TypeId == 'PartDesign::Body':
         return body
+    add_obj_to_body(obj, body)
+    return body
+
+def add_obj_to_body(obj, body):
+    global curr_obj
     # special case for Draft Wires, since they are not treated as 2D objects anymore
     if obj.TypeId == 'Part::FeaturePython' and obj.Shape.ShapeType == 'Face':
         obj.Visibility = False
+        obj.Placement = body.getGlobalPlacement().inverse() * obj.Placement
         obj = Draft.make_sketch(obj, autoconstraints=True)
         curr_obj = obj
-    try:
-        body.addObject(obj)
-    except Exception as e: # some objects, like Part objs cannot be added directly
-        obj.adjustRelativeLinks(body)
-        body.ViewObject.dropObject(obj,None,'',[])
-        clear_selection()
-    return body
-
+        body.addObject(curr_obj)
+        recompute() # needed for update visibility of added sketch
+    else:
+        try:
+            body.addObject(curr_obj)
+            curr_obj.Placement = body.getGlobalPlacement().inverse() * curr_obj.Placement
+        except Exception as e: # some objects, like Part objs cannot be added directly
+            curr_obj.adjustRelativeLinks(body)
+            body.ViewObject.dropObject(curr_obj,None,'',[])
+            clear_selection()
 
 # subtractive features require some solid to subtract from
 
