@@ -189,19 +189,15 @@ def select_object(transform, view, point_coords = None):
             sub_n = info['SubName']
         sub_obj = sub_n.split(".")
         # select body for current object
-        global last_body_used
         parent_group = curr_obj.getParentGeoFeatureGroup()
         if parent_group and parent_group.TypeId == 'PartDesign::Body':
-            last_body_used = parent_group.Name
+            Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", parent_group)
         else:
             for s in sub_obj: #  try find body in subname (eg. when body belongs to assembly)
                 o = doc.getObject(s)
                 if o and o.TypeId == 'PartDesign::Body':
-                    last_body_used = o.Name
+                    Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", o)
                     break
-        body = doc.getObject(last_body_used)
-        if body:
-            Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
         if p_obj:
             if p_obj.TypeId == 'Assembly::AssemblyObject':
                 # find the first non-assembly object
@@ -249,7 +245,7 @@ def get_selection_label():
             if len(subs):
                 sub = subs[0]
             doc = App.ActiveDocument
-            body = doc.getObject(last_body_used)
+            body = get_active_body()
             if body:
                 body_label = body.Label
             s = "Sel: "+ obj.Name + ", " + sub + " [Body: " + body_label +"]"
@@ -376,12 +372,18 @@ edit_mode = EditMode.NONE
 
 initial_edit_plac = App.Placement()
 
-last_body_used = ""
 curr_feature_obj = None
 edit_sel_pnt = None
 edit_started = False
 length = 0
 
+def get_active_body():
+    return Gui.ActiveDocument.ActiveView.getActiveObject("pdbody")
+
+def toggle_active_body_visibility():
+    body = get_active_body()
+    if body:
+        body.ViewObject.Visibility = not body.ViewObject.Visibility
 
 def update_edit_transf(transform):
     if not edit_sel_pnt:
@@ -468,7 +470,7 @@ def set_start_edit(transform, view):
         curr_feature_obj.ViewObject.Visibility = True
     elif edit_mode == EditMode.POCKET:
         # subtractive feature cannot be first, so don't allow Body creation
-        body = doc.getObject(last_body_used)
+        body = get_active_body()
         if not curr_obj:
             return
         curr_feature_obj = body.newObject('PartDesign::Pocket', 'Pocket')
@@ -512,8 +514,6 @@ def create_body(add_obj=False):
     doc = App.ActiveDocument
     body = doc.addObject("PartDesign::Body", "Body")
     Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", body)
-    global last_body_used
-    last_body_used = body.Name
     if add_obj and curr_obj:
         add_obj_to_body(curr_obj, body)
     return body
@@ -538,7 +538,7 @@ def find_add_body():
         doc = App.ActiveDocument
     else:
         return None
-    body = doc.getObject(last_body_used)
+    body = get_active_body()
     # create a body if not exists and make it active
     if not body:
         body = create_body()
@@ -547,6 +547,7 @@ def find_add_body():
     if parent_group and parent_group.TypeId == 'PartDesign::Body':
         return body
     add_obj_to_body(obj, body)
+    body.ViewObject.Visibility = True
     return body
 
 def add_obj_to_body(obj, body):

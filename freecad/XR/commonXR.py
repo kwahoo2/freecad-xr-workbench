@@ -1918,6 +1918,9 @@ class XRwidget(QOpenGLWidget):
             docInter.create_pad()
         elif (name == "pocket_button"):
             docInter.create_pocket()
+        elif (name == "toggle_body_vis_button"):
+            docInter.toggle_active_body_visibility()
+            self.edit_menu.toggle_body_vis_button.select(False)
 
     def update_qt_widgets(self):
         # Qt widgets rendering and click simulation

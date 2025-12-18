@@ -400,7 +400,7 @@ class editCoinMenu(coinMenu):
 
         self.close_button = buttonWidget("close_button", "Close menu", 0, 0.2)
         self.close_button.set_location(
-            SbVec3f(-0.05, 0.2, -0.3), SbRotation(0, 0, 0, 0))
+            SbVec3f(-0.05, 0.15, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.close_button)
 
         # buttons in radio group 1
@@ -414,6 +414,14 @@ class editCoinMenu(coinMenu):
             SbVec3f(0.25, 0.1, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.pocket_button)
 
+        # no radio group
+        self.toggle_body_vis_button = buttonWidget(
+            "toggle_body_vis_button", "Toggle Body Vis", 0, 0.2)
+        self.toggle_body_vis_button.set_location(
+            SbVec3f(0.45, 0.15, -0.3), SbRotation(0, 0, 0, 0))
+        self.widget_list.append(self.toggle_body_vis_button)
+
+        # labels
         self.label = labelWidget("label", "Pocket", 0.2)
         self.label.set_location(
             SbVec3f(-0.05, 0.3, -0.3), SbRotation(0, 0, 0, 0))
