@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>467</width>
-    <height>530</height>
+    <width>487</width>
+    <height>606</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -50,14 +50,14 @@
        </property>
       </widget>
      </item>
-     <item row="4" column="0" colspan="2">
+     <item row="6" column="0" colspan="2">
       <widget class="QLabel" name="label_3">
        <property name="text">
         <string>Ambient Light Intensity</string>
        </property>
       </widget>
      </item>
-     <item row="5" column="0" colspan="2">
+     <item row="7" column="0" colspan="2">
       <widget class="QSlider" name="ambiLiSlider">
        <property name="maximum">
         <number>100</number>
@@ -67,14 +67,14 @@
        </property>
       </widget>
      </item>
-     <item row="6" column="0" colspan="2">
+     <item row="8" column="0" colspan="2">
       <widget class="QLabel" name="label_4">
        <property name="text">
         <string>Directional Light Intensity</string>
        </property>
       </widget>
      </item>
-     <item row="7" column="0" colspan="2">
+     <item row="9" column="0" colspan="2">
       <widget class="QSlider" name="dirLiSlider">
        <property name="maximum">
         <number>100</number>
@@ -84,7 +84,7 @@
        </property>
       </widget>
      </item>
-     <item row="8" column="0" colspan="2">
+     <item row="10" column="0" colspan="2">
       <widget class="QCheckBox" name="mirrEnblCheckBox">
        <property name="toolTip">
         <string>May degrade performance</string>
@@ -94,28 +94,28 @@
        </property>
       </widget>
      </item>
-     <item row="9" column="0" colspan="2">
+     <item row="11" column="0" colspan="2">
       <widget class="QCheckBox" name="debugEnblCheckBox">
        <property name="text">
         <string>Start with debug info</string>
        </property>
       </widget>
      </item>
-     <item row="10" column="0" colspan="2">
+     <item row="12" column="0" colspan="2">
       <widget class="QCheckBox" name="highestOpenxrCheckBox">
        <property name="text">
         <string>Use the highest OpenXR version available</string>
        </property>
       </widget>
      </item>
-     <item row="11" column="0">
+     <item row="13" column="0">
       <widget class="QLabel" name="label_5">
        <property name="text">
         <string>Anti-Aliasing</string>
        </property>
       </widget>
      </item>
-     <item row="11" column="1">
+     <item row="13" column="1">
       <widget class="QComboBox" name="msaaComboBox">
        <item>
         <property name="text">
@@ -139,14 +139,14 @@
        </item>
       </widget>
      </item>
-     <item row="12" column="0">
+     <item row="14" column="0">
       <widget class="QLabel" name="label_6">
        <property name="text">
         <string>Movement</string>
        </property>
       </widget>
      </item>
-     <item row="12" column="1">
+     <item row="14" column="1">
       <widget class="QRadioButton" name="movArchRadioButton">
        <property name="text">
         <string>A&amp;rch</string>
@@ -156,7 +156,7 @@
        </attribute>
       </widget>
      </item>
-     <item row="13" column="1">
+     <item row="15" column="1">
       <widget class="QRadioButton" name="movFreeRadioButton">
        <property name="text">
         <string>F&amp;ree</string>
@@ -166,7 +166,7 @@
        </attribute>
       </widget>
      </item>
-     <item row="14" column="0" colspan="2">
+     <item row="16" column="0" colspan="2">
       <widget class="QLabel" name="label_7">
        <property name="text">
         <string>Tracked third-person perspective camera settings</string>
@@ -176,7 +176,7 @@
        </property>
       </widget>
      </item>
-     <item row="15" column="0">
+     <item row="17" column="0">
       <widget class="QLabel" name="label_8">
        <property name="text">
         <string>Translation</string>
@@ -186,7 +186,7 @@
        </property>
       </widget>
      </item>
-     <item row="15" column="1">
+     <item row="17" column="1">
       <layout class="QHBoxLayout" name="horizontalLayout">
        <item>
         <widget class="QDoubleSpinBox" name="xTransSpinBox">
@@ -238,35 +238,14 @@
        </item>
       </layout>
      </item>
-     <item row="16" column="0">
+     <item row="18" column="0">
       <widget class="QLabel" name="label_9">
        <property name="text">
         <string>Rotation axis</string>
        </property>
       </widget>
      </item>
-     <item row="17" column="0">
-      <widget class="QLabel" name="label_10">
-       <property name="text">
-        <string>Rotation angle</string>
-       </property>
-      </widget>
-     </item>
-     <item row="18" column="0">
-      <widget class="QLabel" name="label_11">
-       <property name="text">
-        <string>Aspect ratio</string>
-       </property>
-      </widget>
-     </item>
-     <item row="19" column="0">
-      <widget class="QLabel" name="label_12">
-       <property name="text">
-        <string>Vertical FOV</string>
-       </property>
-      </widget>
-     </item>
-     <item row="16" column="1">
+     <item row="18" column="1">
       <layout class="QHBoxLayout" name="horizontalLayout_2">
        <item>
         <widget class="QDoubleSpinBox" name="xRotSpinBox">
@@ -315,7 +294,14 @@
        </item>
       </layout>
      </item>
-     <item row="17" column="1">
+     <item row="19" column="0">
+      <widget class="QLabel" name="label_10">
+       <property name="text">
+        <string>Rotation angle</string>
+       </property>
+      </widget>
+     </item>
+     <item row="19" column="1">
       <widget class="QDoubleSpinBox" name="angleRotSpinBox">
        <property name="suffix">
         <string>°</string>
@@ -325,7 +311,14 @@
        </property>
       </widget>
      </item>
-     <item row="18" column="1">
+     <item row="20" column="0">
+      <widget class="QLabel" name="label_11">
+       <property name="text">
+        <string>Aspect ratio</string>
+       </property>
+      </widget>
+     </item>
+     <item row="20" column="1">
       <layout class="QHBoxLayout" name="horizontalLayout_3">
        <item>
         <widget class="QDoubleSpinBox" name="aspectWSpinBox">
@@ -371,7 +364,14 @@
        </item>
       </layout>
      </item>
-     <item row="19" column="1">
+     <item row="21" column="0">
+      <widget class="QLabel" name="label_12">
+       <property name="text">
+        <string>Vertical FOV</string>
+       </property>
+      </widget>
+     </item>
+     <item row="21" column="1">
       <widget class="QDoubleSpinBox" name="vertFovSpinBox">
        <property name="suffix">
         <string>°</string>
@@ -384,6 +384,20 @@
        </property>
        <property name="value">
         <double>1.000000000000000</double>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="2">
+      <widget class="QLabel" name="label_14">
+       <property name="text">
+        <string>Picking Radius</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
+      <widget class="QSlider" name="pickRadiusSlider">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
        </property>
       </widget>
      </item>

@@ -317,6 +317,14 @@ class mainCoinMenu(coinMenu):
                 0, 0, 0, 0))
         self.widget_list.append(self.scale_slider)
 
+        self.pick_radius_slider = sliderWidget(
+            "pick_radius_slider", "Picking radius")
+        self.pick_radius_slider.set_location(
+            SbVec3f(
+                0.0, 0.3, -0.3), SbRotation(
+                0, 0, 0, 0))
+        self.widget_list.append(self.pick_radius_slider)
+
         # buttons in radio group 2
         self.teleport_mode_button = buttonWidget(
             "teleport_mode_button", "Teleport Mode", 2, 0.2)

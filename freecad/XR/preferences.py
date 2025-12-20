@@ -46,6 +46,7 @@ class VRPreferencesPage:
         pref = preferences()
         pref.SetInt("LinearSpeed", self.form.linearSpeedSlider.value())
         pref.SetInt("RotationalSpeed", self.form.rotSpeedSlider.value())
+        pref.SetInt("PickingRadius", self.form.pickRadiusSlider.value())
         pref.SetInt("AmbientLightIntesity", self.form.ambiLiSlider.value())
         pref.SetInt("DirectionalLightIntesity", self.form.dirLiSlider.value())
         msaa_vals = [0, 2, 4, 8]
@@ -75,6 +76,7 @@ class VRPreferencesPage:
         pref = preferences()
         self.form.linearSpeedSlider.setValue(pref.GetInt("LinearSpeed", 50))
         self.form.rotSpeedSlider.setValue(pref.GetInt("RotationalSpeed", 50))
+        self.form.pickRadiusSlider.setValue(pref.GetInt("PickingRadius", 20))
         self.form.ambiLiSlider.setValue(
             pref.GetInt("AmbientLightIntesity", 40))
         self.form.dirLiSlider.setValue(
