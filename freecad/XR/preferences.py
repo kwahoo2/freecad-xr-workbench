@@ -37,7 +37,7 @@ def preferences():
     return FreeCAD.ParamGet(
         "User parameter:BaseApp/Preferences/Mod/freecad-xr-workbench")
 
-class PreferencesPage:
+class VRPreferencesPage:
     def __init__(self, parent=None):
         self.form = FreeCADGui.PySideUic.loadUi(
             ":preferences/XRPreferences.ui")

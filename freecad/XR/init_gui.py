@@ -71,7 +71,7 @@ static char * ico_xpm[] = {
         Gui.addLanguagePath(":/translations")
         Gui.addIconPath(":/icons")
         Gui.addPreferencePage(
-            preferences.PreferencesPage, QT_TRANSLATE_NOOP("QObject", "Virtual Reality")
+            preferences.VRPreferencesPage, QT_TRANSLATE_NOOP("QObject", "Virtual Reality")
         )
 
 
