@@ -452,6 +452,7 @@ def set_start_edit(transform, view):
     selection = Gui.Selection.getSelectionEx()
     curr_obj = selection[0].Object
     if not curr_obj:
+        print ("Pad failed, no object selected")
         return
     curr_feature_obj = None
     sub_objs =  ['',]
@@ -463,6 +464,7 @@ def set_start_edit(transform, view):
     if edit_mode == EditMode.PAD:
         body = find_add_body()
         if not curr_obj: # asking again, since adding obj to the Body might fail
+            print (f"Pad failed, no object added to {body.Label}")
             return
         curr_feature_obj = body.newObject('PartDesign::Pad', 'Pad')
         curr_feature_obj.Profile = (curr_obj, sub_objs)
@@ -470,9 +472,14 @@ def set_start_edit(transform, view):
         curr_feature_obj.ViewObject.Visibility = True
     elif edit_mode == EditMode.POCKET:
         # subtractive feature cannot be first, so don't allow Body creation
-        body = get_active_body()
-        if not curr_obj:
+        body = find_add_body(allow_creation=False)
+        if not is_body_solid(body):
+            print (f"Pocker failed, {body.Label} is not solid")
             return
+        if not curr_obj:
+            print ("Pocket failed, no object selected")
+            return
+        add_obj_to_body
         curr_feature_obj = body.newObject('PartDesign::Pocket', 'Pocket')
         curr_feature_obj.Profile = (curr_obj, sub_objs)
         curr_obj.ViewObject.Visibility = False
@@ -532,7 +539,7 @@ def delete_sel_obj():
 # If no body exists it creates one.
 # A body can be also also selected and activated during object selection in select_object()
 
-def find_add_body():
+def find_add_body(allow_creation=True):
     if curr_obj:
         obj = curr_obj
         doc = App.ActiveDocument
@@ -541,6 +548,8 @@ def find_add_body():
     body = get_active_body()
     # create a body if not exists and make it active
     if not body:
+        if not allow_creation:
+            return None
         body = create_body()
     # check if object has a body parent already (do nothing then)
     parent_group = obj.getParentGeoFeatureGroup()

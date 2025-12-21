@@ -484,6 +484,14 @@ class XRwidget(QOpenGLWidget):
         for w in self.qt_widget_renders:
             self.qt_widgets_separator.addChild(
                 w.get_scenegraph())
+        # labels glued to the right controller
+        self.labels_separator = SoSeparator()
+        self.labels_separator.addChild(
+            self.xr_con[self.secondary_con].get_global_transf())
+        self.status_label = menuCoin.labelWidget("label", "Pick teleport destination", 0.2)
+        self.status_label.set_location(
+            SbVec3f(-0.1, 0.0, 0.0), SbRotation(0, 0, 0, 0))
+        self.labels_separator.addChild(self.status_label.get_scenegraph())
         for eye_index in range(2):
             self.root_scene[eye_index].ref()
             self.root_scene[eye_index].addChild(self.cgrp[eye_index])
@@ -503,6 +511,8 @@ class XRwidget(QOpenGLWidget):
                 self.con_menu.get_menu_scenegraph())
             self.sgrp[eye_index].addChild(
                 self.edit_menu.get_menu_scenegraph())
+            # and labels
+            self.sgrp[eye_index].addChild(self.labels_separator)
             # add world (scene without controllers and gui elements)
             self.sgrp[eye_index].addChild(self.world_separator)
             # add geometry preview objects
@@ -1692,7 +1702,7 @@ class XRwidget(QOpenGLWidget):
                     # the newly showed menu is aligned to the controller which selected object
                     pos = con.get_global_transf().translation
                     rot = con.get_global_transf().rotation
-                    self.edit_menu.update_label(docInter.get_selection_label())
+                    self.status_label.set_text(docInter.get_selection_label())
                     self.edit_menu.update_location(pos, rot)
                     self.edit_menu.show_menu()
         else:
@@ -1871,7 +1881,6 @@ class XRwidget(QOpenGLWidget):
                                       round(self.user_rot_speed * 100))
         elif (name == "pick_radius_slider"):
             self.pick_camera.height = widget.value / 10
-            print(self.pick_camera.height.getValue())
             pref.preferences().SetInt("PickingRadius",
                                       round(self.pick_camera.height.getValue() * 1000))
         elif (name == "scale_slider"):
@@ -1879,22 +1888,28 @@ class XRwidget(QOpenGLWidget):
             self.doc_xr_transform.scaleFactor.setValue(sf, sf, sf)
         elif (name == "teleport_mode_button"):
             self.interact_mode = InteractMode.TELEPORT
+            self.status_label.set_text("Pick teleport destination")
         elif (name == "working_plane_button"):
             self.interact_mode = InteractMode.WORKING_PLANE
+            self.status_label.set_text("Set working plane")
             self.geo_prev.show_working_plane()
         elif (name == "toggle_plane_button"):
             self.geo_prev.toggle_working_plane()
             self.con_menu.toggle_plane_button.select(False)
         elif (name == "line_builder_button"):
             self.interact_mode = InteractMode.LINE_BUILDER
+            self.status_label.set_text("Line/Face builder")
             docInter.set_mode(docInter.BuilderMode.LINE_BUILDER)
         elif (name == "cube_builder_button"):
             self.interact_mode = InteractMode.CUBE_BUILDER
+            self.status_label.set_text("Click and drag for Cube building")
             docInter.set_mode(docInter.BuilderMode.CUBE_BUILDER)
         elif (name == "pick_sel_button"):
             self.interact_mode = InteractMode.SELECT_MODE
+            self.status_label.set_text("Select/Edit mode")
         elif (name == "pick_drag_button"):
             self.interact_mode = InteractMode.DRAG_MODE
+            self.status_label.set_text("Pick element for dragging")
         elif (name == "toggle_overlay_button"):
             for w in self.qt_widget_renders:
                 w.toggle_widget()
@@ -1920,7 +1935,7 @@ class XRwidget(QOpenGLWidget):
                 False)  # button not toggleable
         elif (name == "new_body_button"):
             docInter.create_body(add_obj=True)
-            self.edit_menu.update_label(docInter.get_selection_label())
+            self.status_label.set_text(docInter.get_selection_label())
             self.edit_menu.new_body_button.select(False)
         elif (name == "pad_button"):
             docInter.create_pad()

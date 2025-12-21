@@ -36,8 +36,8 @@ class coinPreview:
     def __init__(self):
         self.prev_sep = SoSeparator()
 
-        self.draw_prev_sep = SoSwitch()
-        self.draw_prev_sep.whichChild = SO_SWITCH_NONE
+        self.draw_prev_switch = SoSwitch()
+        self.draw_prev_switch.whichChild = SO_SWITCH_NONE
 
         self.working_plane_switch = SoSwitch()
         self.working_plane_switch.whichChild = SO_SWITCH_NONE
@@ -47,11 +47,17 @@ class coinPreview:
 
         self.line_labels_switch = SoSwitch()
         self.line_labels_switch.whichChild = SO_SWITCH_NONE
+        self.line_labels_sep = SoSeparator()
+        self.line_labels_switch.addChild(self.line_labels_sep)
+        # labels should be moved slightly towards user to avoid intersection with solids being edited
+        labels_transf = SoTransform()
+        labels_transf.translation.setValue(SbVec3f(0, 0, 0.2))
+        self.line_labels_sep.addChild(labels_transf)
 
         self.feature_labels_switch = SoSwitch()
         self.feature_labels_switch.whichChild = SO_SWITCH_NONE
 
-        self.prev_sep.addChild(self.draw_prev_sep)
+        self.prev_sep.addChild(self.draw_prev_switch)
         self.prev_sep.addChild(self.line_labels_switch)
         self.prev_sep.addChild(self.feature_labels_switch)
         # render WP last, as it is transparent
@@ -82,8 +88,8 @@ class coinPreview:
         self.pnts.vertexProperty = self.pnt_vtxs
         self.pick_sep.addChild(self.pnts)
 
-        self.draw_prev_sep.addChild(self.not_pick_sep)
-        self.draw_prev_sep.addChild(self.pick_sep)
+        self.draw_prev_switch.addChild(self.not_pick_sep)
+        self.draw_prev_switch.addChild(self.pick_sep)
 
         self.point_counter = 0
 
@@ -115,10 +121,10 @@ class coinPreview:
 
         # show line vertices coordinates and line length
         self.coord_label = labelWidget(text="(0.00, 0.00, 0.00)", scale=0.005)
-        self.line_labels_switch.addChild(self.coord_label.get_scenegraph())
+        self.line_labels_sep.addChild(self.coord_label.get_scenegraph())
 
         self.length_label = labelWidget(text="L=0.00", scale=0.005)
-        self.line_labels_switch.addChild(self.length_label.get_scenegraph())
+        self.line_labels_sep.addChild(self.length_label.get_scenegraph())
 
         # reuse already created label as a feature label
         self.feature_labels_switch.addChild(self.length_label.get_scenegraph())
@@ -147,7 +153,7 @@ class coinPreview:
         return None
 
     def clean_polyline_preview(self):
-        self.draw_prev_sep.whichChild = SO_SWITCH_NONE
+        self.draw_prev_switch.whichChild = SO_SWITCH_NONE
         self.line_labels_switch.whichChild = SO_SWITCH_NONE
         self.feature_labels_switch.whichChild = SO_SWITCH_NONE
         self.pline_vtxs.vertex.deleteValues(
@@ -163,7 +169,7 @@ class coinPreview:
         self.pline_vtxs.vertex.set1Value(1, vec)
         self.pnt_vtxs.vertex.set1Value(0, vec)
         self.point_counter = 2
-        self.draw_prev_sep.whichChild = SO_SWITCH_ALL
+        self.draw_prev_switch.whichChild = SO_SWITCH_ALL
         self.line_labels_switch.whichChild = SO_SWITCH_ALL
 
     def add_polyline_node(self, vec):

@@ -429,14 +429,5 @@ class editCoinMenu(coinMenu):
             SbVec3f(0.45, 0.15, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.toggle_body_vis_button)
 
-        # labels
-        self.label = labelWidget("label", "Pocket", 0.2)
-        self.label.set_location(
-            SbVec3f(-0.05, 0.3, -0.3), SbRotation(0, 0, 0, 0))
-        self.widget_list.append(self.label)
-
         for w in self.widget_list:
             self.menu_node.addChild(w.get_scenegraph())
-
-    def update_label(self, text):
-        self.label.set_text(text)
