@@ -118,7 +118,9 @@ In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 
 The `Toggle third-person camera` button replaces the VR HMD mirror with a view based on an additional tracker location. A tracker's role has to be set as `CAMERA` in the OpenXR options. The relative camera position to the tracker can be adjusted in the Addon preferences. Such tracked camera was used to record the demo video shown at the beginning of the README.
 
-[xrprefs]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/main/.github/images/xr-prefs.png "View of preferences tab"
+![FreeCAD_Preferences][xrprefs]
+
+[xrprefs]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/main/.github/images/xr_prefs.png "View of preferences tab"
 
 ## OpenXR version
 
