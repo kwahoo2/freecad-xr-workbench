@@ -9,11 +9,15 @@ More in [Extending Workbench](Resources/doc/Extending_Workbench.md).
 
 [fcxr]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/main/.github/images/fcxr-screen.png "View of active workbench"
 
+## Demo video
+
+[![FreeCAD Virtual Reality Addon](https://img.youtube.com/vi/6aVT2NHf4vE/0.jpg)](https://youtu.be/6aVT2NHf4vE)
+
 ## Prerequisites
 
 ### Software Dependencies
 
-* FreeCAD 0.20 or later, some features require FreeCAD 1.1 (dev)
+* FreeCAD 1.1rc1
 * Python 3.11+
 * an OpenXR Runtime (eg. SteamVR 2.11.2 or later, Monado), it can be selected manually with:
 
@@ -79,10 +83,23 @@ If motion controllers are unavailable, a keyboard can be used.
 
 Depending on platform, the mirror window may or may not need to be shown and focused (click into to focus) to catch keys.
 
-## Dragging objects and modelling tools
-Dragging objects with the motion controller ray is available since 15.12.2024 (39642) FreeCAD 1.1 (dev) Weekly Build.
+## Controller menus
+Pressing the left controller trigger shows the main options and tools menu. The current tool can be selected by pointing the ray and releasing the trigger. The selected tool affects the right controller behavior. Currently available tools:
 
-This version is also required for modelling tools like a [Pad or Pocket.](https://youtu.be/BlZWMUpZ5mU)
+* Teleport Mode – enables teleport movement. Point the right controller ray at the destination surface and press its trigger. You will be teleported to the new destination.
+* Line Builder – allows building polylines in 3D space. If a polyline is created on a flat plane and closed, it will be converted to a face. You may use the Working Plane tool as a plane for drawing polylines. Press the left controller trigger to finish polyline creation. You may also adjust the picking radius (using a slider in the same menu) for easier point snapping.
+* Cube Builder – press the right controller trigger and drag to create a cube. This simple tool is included mostly as an example.
+* Selection Mode – select and edit an object in 3D space.
+* Dragging Mode – select and drag an object in 3D space. If the object is part of an assembly, it must have 6 DOF and must be constrained with GroundedJoint. Dragging works by changing the object’s placement. The assembly solver detects the constrained object’s placement change and adjusts the placement of other objects.
+* Working Plane – allows you to set a working plane with the right controller ray. It is useful for Line Builder, as vertices can be snapped to the plane.
+* Toggle Overlay – toggles the projection of the main window’s Qt widgets in 3D space. By default, the Tree View and Tasks View are projected. The right controller ray emulates mouse pointing, including left mouse click and double-click. Right mouse click and dragging are not implemented yet.
+
+### Selection mode (EXPERIMENTAL)
+If Selection Mode is enabled, pointing the right controller ray at an object and pressing the trigger displays an edit menu near the right controller. For example:
+
+1. Point the ray and press the trigger on a face to select it. If a body does not exist, it will be created.
+2. Select Pad; the button will turn green.
+3. Point the ray and press the trigger again, then start dragging. The face will continuously extrude until you release the trigger.
 
 ## Tips and tricks:
 
@@ -97,9 +114,15 @@ In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 
 `STEAMVR_LH_ENABLE=true monado-service`
 
-Wayland:
+## Tracked third-person camera
 
-Pure Wayland/EGL session may need additional steps, please check [EGL Howto](Resources/doc/EGL_Howto.md)
+The `Toggle third-person camera` button replaces the VR HMD mirror with a view based on an additional tracker location. A tracker's role has to be set as `CAMERA` in the OpenXR options. The relative camera position to the tracker can be adjusted in the Addon preferences. Such tracked camera was used to record the demo video shown at the beginning of the README.
+
+[xrprefs]: https://raw.githubusercontent.com/kwahoo2/freecad-xr-workbench/main/.github/images/xr-prefs.png "View of preferences tab"
+
+## OpenXR version
+
+While all required features are available in OpenXR 1.0, some newer controllers might require a newer version of the API. The `Use the highest OpenXR version available` option forces the addon to request the runtime for the newest version supported by `pyopenxr`. If such a version is not available, the addon will fall back to 1.0.x.
 
 ## License
 
