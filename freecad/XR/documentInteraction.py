@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2024 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2024-2025 Adrian Przekwas adrian.v.przekwas@gmail.com   *
 # *                                                                         *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
@@ -30,7 +30,7 @@ try:
     import UtilsAssembly
     has_utils_assembly = True
 except ImportError:
-    print ("UtilsAssembly not found, functionality will be limited")
+    print("UtilsAssembly not found, functionality will be limited")
     has_utils_assembly = False
 
 from enum import Enum
@@ -53,7 +53,7 @@ curr_sel = None
 # last selected object
 curr_obj = None
 curr_draggable_obj = None
-sel_pnt = App.Vector() # selection point
+sel_pnt = App.Vector()  # selection point
 obj_plac_at_sel = App.Placement()
 draggable_obj_plac_at_sel = App.Placement()
 con_plac_at_sel = App.Placement()
@@ -147,7 +147,7 @@ def resize_cube(transf):
         cube.Height = lz if lz > 0 else 1
 
 
-def select_object(transform, view, point_coords = None):
+def select_object(transform, view, point_coords=None):
     doc = App.ActiveDocument
     rot = transform.rotation.getValue()
     ray_axis = rot.multVec(SbVec3f(0, 0, 1))
@@ -191,9 +191,11 @@ def select_object(transform, view, point_coords = None):
         # select body for current object
         parent_group = curr_obj.getParentGeoFeatureGroup()
         if parent_group and parent_group.TypeId == 'PartDesign::Body':
-            Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", parent_group)
+            Gui.ActiveDocument.ActiveView.setActiveObject(
+                "pdbody", parent_group)
         else:
-            for s in sub_obj: #  try find body in subname (eg. when body belongs to assembly)
+            # try find body in subname (eg. when body belongs to assembly)
+            for s in sub_obj:
                 o = doc.getObject(s)
                 if o and o.TypeId == 'PartDesign::Body':
                     Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", o)
@@ -233,6 +235,7 @@ def clear_selection():
     curr_sel = None
     curr_draggable_obj = None
 
+
 def get_selection_label():
     s = ""
     sub = ""
@@ -248,8 +251,9 @@ def get_selection_label():
             body = get_active_body()
             if body:
                 body_label = body.Label
-            s = "Sel: "+ obj.Name + ", " + sub + " [Body: " + body_label +"]"
+            s = "Sel: " + obj.Name + ", " + sub + " [Body: " + body_label + "]"
     return s
+
 
 def drag_object(transform):
     con_plac = coin_to_doc_placement(transform)
@@ -269,6 +273,8 @@ def drag_object(transform):
     return s_pnt
 
 # finds normal of the face in the selection point
+
+
 def find_normal_sel():
     selection = Gui.Selection.getSelectionEx()
     obj = selection[0].Object
@@ -285,6 +291,7 @@ def find_normal_sel():
         return normal
     else:
         return None
+
 
 def get_sel_sbvec():
     sb_vec = None
@@ -330,6 +337,7 @@ def doc_to_coin_rot(drot):
     q = drot.Q
     rot = SbRotation(q[0], q[1], q[2], q[3])
     return rot
+
 
 def recompute():
     App.ActiveDocument.recompute()
@@ -377,13 +385,16 @@ edit_sel_pnt = None
 edit_started = False
 length = 0
 
+
 def get_active_body():
     return Gui.ActiveDocument.ActiveView.getActiveObject("pdbody")
+
 
 def toggle_active_body_visibility():
     body = get_active_body()
     if body:
         body.ViewObject.Visibility = not body.ViewObject.Visibility
+
 
 def update_edit_transf(transform):
     if not edit_sel_pnt:
@@ -419,7 +430,7 @@ def update_edit_transf(transform):
         # this will not be necessary if the placement of the face is aligned with its vertices
         curr_feature_obj.AlongSketchNormal = True
         abs_length = abs(length)
-        if abs_length < 0.1: # avoid 0 length feature at the start of dragging
+        if abs_length < 0.1:  # avoid 0 length feature at the start of dragging
             abs_length = 0.1
         curr_feature_obj.Length = abs_length
         curr_feature_obj.Direction = normal
@@ -452,19 +463,19 @@ def set_start_edit(transform, view):
     selection = Gui.Selection.getSelectionEx()
     curr_obj = selection[0].Object
     if not curr_obj:
-        print ("Pad failed, no object selected")
+        print("Pad failed, no object selected")
         return
     curr_feature_obj = None
-    sub_objs =  ['',]
+    sub_objs = ['',]
     if (curr_obj.TypeId == 'PartDesign::Pad'
-        or curr_obj.TypeId == 'PartDesign::Pocket'):
+            or curr_obj.TypeId == 'PartDesign::Pocket'):
         subs = selection[0].SubElementNames
         if len(subs):
             sub_objs = [subs[0],]
     if edit_mode == EditMode.PAD:
         body = find_add_body()
-        if not curr_obj: # asking again, since adding obj to the Body might fail
-            print (f"Pad failed, no object added to {body.Label}")
+        if not curr_obj:  # asking again, since adding obj to the Body might fail
+            print(f"Pad failed, no object added to {body.Label}")
             return
         curr_feature_obj = body.newObject('PartDesign::Pad', 'Pad')
         curr_feature_obj.Profile = (curr_obj, sub_objs)
@@ -474,10 +485,10 @@ def set_start_edit(transform, view):
         # subtractive feature cannot be first, so don't allow Body creation
         body = find_add_body(allow_creation=False)
         if not is_body_solid(body):
-            print (f"Pocker failed, {body.Label} is not solid")
+            print(f"Pocker failed, {body.Label} is not solid")
             return
         if not curr_obj:
-            print ("Pocket failed, no object selected")
+            print("Pocket failed, no object selected")
             return
         add_obj_to_body
         curr_feature_obj = body.newObject('PartDesign::Pocket', 'Pocket')
@@ -539,6 +550,7 @@ def delete_sel_obj():
 # If no body exists it creates one.
 # A body can be also also selected and activated during object selection in select_object()
 
+
 def find_add_body(allow_creation=True):
     if curr_obj:
         obj = curr_obj
@@ -559,6 +571,7 @@ def find_add_body(allow_creation=True):
     body.ViewObject.Visibility = True
     return body
 
+
 def add_obj_to_body(obj, body):
     global curr_obj
     # special case for Draft Wires, since they are not treated as 2D objects anymore
@@ -568,17 +581,18 @@ def add_obj_to_body(obj, body):
         obj = Draft.make_sketch(obj, autoconstraints=True)
         curr_obj = obj
         body.addObject(curr_obj)
-        recompute() # needed for update visibility of added sketch
+        recompute()  # needed for update visibility of added sketch
     else:
         try:
             body.addObject(curr_obj)
             curr_obj.Placement = body.getGlobalPlacement().inverse() * curr_obj.Placement
-        except Exception as e: # some objects, like Part objs cannot be added directly
+        except Exception as e:  # some objects, like Part objs cannot be added directly
             curr_obj.adjustRelativeLinks(body)
-            body.ViewObject.dropObject(curr_obj,None,'',[])
+            body.ViewObject.dropObject(curr_obj, None, '', [])
             clear_selection()
 
 # subtractive features require some solid to subtract from
+
 
 def is_body_solid(body):
     if not body:

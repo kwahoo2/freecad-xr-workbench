@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2024 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2024-2025 Adrian Przekwas adrian.v.przekwas@gmail.com   *
 # *                                                                         *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
@@ -156,6 +156,7 @@ class sliderWidget:
     def get_widget_tail(self):
         return self.back_shape
 
+
 class labelWidget:
     def __init__(self, name="", text="", width=0.08, scale=0.002):
         self.name = name
@@ -191,7 +192,7 @@ class labelWidget:
         return self.label_sep
 
     def get_widget_tail(self):
-        return None # not required, since it is never picked
+        return None  # not required, since it is never picked
 
 
 class coinMenu:
@@ -275,6 +276,8 @@ class coinMenu:
                 w.select(False)
 
 # this is the main menu
+
+
 class mainCoinMenu(coinMenu):
     def __init__(self, visible=False):
         super().__init__(visible)
@@ -391,17 +394,21 @@ class mainCoinMenu(coinMenu):
         self.menu_node.addChild(self.pick_drag_button.get_scenegraph())
 
 # this is menu for editing objects
+
+
 class editCoinMenu(coinMenu):
     def __init__(self, visible=False):
         super().__init__(visible)
 
-        self.del_obj_button = buttonWidget("del_obj_button", "Delete object", 0, 0.2)
+        self.del_obj_button = buttonWidget(
+            "del_obj_button", "Delete object", 0, 0.2)
         # set location relative to menu location
         self.del_obj_button.set_location(
             SbVec3f(-0.05, 0.1, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.del_obj_button)
 
-        self.new_body_button = buttonWidget("new_body_button", "Create a body", 0, 0.2)
+        self.new_body_button = buttonWidget(
+            "new_body_button", "Create a body", 0, 0.2)
         self.new_body_button.set_location(
             SbVec3f(0.45, 0.1, -0.3), SbRotation(0, 0, 0, 0))
         self.widget_list.append(self.new_body_button)

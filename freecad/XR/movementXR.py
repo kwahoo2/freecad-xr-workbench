@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2023-2025 Adrian Przekwas adrian.v.przekwas@gmail.com   *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -35,7 +35,7 @@ from PySide.QtCore import Qt
 class KeyboardMovement:
     walk: float = 0.0  # forward - backward
     sidestep: float = 0.0  # left - right
-    altitude: float = 0.0 # up - down
+    altitude: float = 0.0  # up - down
     xrot: float = 0.0  # pitch
     yrot: float = 0.0  # yaw
     zrot: float = 0.0  # roll
@@ -146,7 +146,8 @@ class xrMovement:
         rot.scaleAngle(rot_speed)
         transf_kb.rotation.setValue(rot)
 
-        trsl = SbVec3f(self.key_mov.sidestep, self.key_mov.altitude, self.key_mov.walk)
+        trsl = SbVec3f(self.key_mov.sidestep,
+                       self.key_mov.altitude, self.key_mov.walk)
         trsl_transf = hmdrot.multVec(-trsl * mov_speed)
         transf_kb.translation.setValue(trsl_transf)
         return transf_kb

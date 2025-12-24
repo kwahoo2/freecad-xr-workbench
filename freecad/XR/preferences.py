@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2024 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2024-2025 Adrian Przekwas adrian.v.przekwas@gmail.com   *
 # *                                                                         *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
@@ -29,13 +29,16 @@ translate = FreeCAD.Qt.translate
 # flag for rendering loop that it should read preferences
 pref_updated = False
 
+
 def reset_upd_flag():
     global pref_updated
     pref_updated = False
 
+
 def preferences():
     return FreeCAD.ParamGet(
         "User parameter:BaseApp/Preferences/Mod/freecad-xr-workbench")
+
 
 class VRPreferencesPage:
     def __init__(self, parent=None):
@@ -53,7 +56,8 @@ class VRPreferencesPage:
         pref.SetInt("MSAA", msaa_vals[self.form.msaaComboBox.currentIndex()])
         pref.SetBool("MirrorEnable", self.form.mirrEnblCheckBox.isChecked())
         pref.SetBool("DebugEnable", self.form.debugEnblCheckBox.isChecked())
-        pref.SetBool("UseHighestOpenXR", self.form.highestOpenxrCheckBox.isChecked())
+        pref.SetBool("UseHighestOpenXR",
+                     self.form.highestOpenxrCheckBox.isChecked())
         if self.form.movArchRadioButton.isChecked():
             pref.SetString("Movement", "ARCH")
         elif self.form.movFreeRadioButton.isChecked():
@@ -71,7 +75,6 @@ class VRPreferencesPage:
         global pref_updated
         pref_updated = True
 
-
     def loadSettings(self):
         pref = preferences()
         self.form.linearSpeedSlider.setValue(pref.GetInt("LinearSpeed", 50))
@@ -82,18 +85,23 @@ class VRPreferencesPage:
         self.form.dirLiSlider.setValue(
             pref.GetInt("DirectionalLightIntesity", 80))
         msaa_val_to_index = {0: 0, 2: 1, 4: 2, 8: 3}
-        self.form.msaaComboBox.setCurrentIndex(msaa_val_to_index.get(pref.GetInt("MSAA", 4), 0))
+        self.form.msaaComboBox.setCurrentIndex(
+            msaa_val_to_index.get(pref.GetInt("MSAA", 4), 0))
         mov_str = pref.GetString("Movement", "ARCH")
-        self.form.mirrEnblCheckBox.setChecked(pref.GetBool("MirrorEnable", False))
-        self.form.debugEnblCheckBox.setChecked(pref.GetBool("DebugEnable", False))
-        self.form.highestOpenxrCheckBox.setChecked(pref.GetBool("UseHighestOpenXR", False))
+        self.form.mirrEnblCheckBox.setChecked(
+            pref.GetBool("MirrorEnable", False))
+        self.form.debugEnblCheckBox.setChecked(
+            pref.GetBool("DebugEnable", False))
+        self.form.highestOpenxrCheckBox.setChecked(
+            pref.GetBool("UseHighestOpenXR", False))
         self.form.xTransSpinBox.setValue(pref.GetFloat("TPPCamXTransl", 0.0))
         self.form.yTransSpinBox.setValue(pref.GetFloat("TPPCamYTransl", 0.0))
         self.form.zTransSpinBox.setValue(pref.GetFloat("TPPCamZTransl", 0.0))
         self.form.xRotSpinBox.setValue(pref.GetFloat("TPPCamXRot", 0.0))
         self.form.yRotSpinBox.setValue(pref.GetFloat("TPPCamYRot", 0.0))
         self.form.zRotSpinBox.setValue(pref.GetFloat("TPPCamZRot", 1.0))
-        self.form.angleRotSpinBox.setValue(pref.GetFloat("TPPCamAngleRot", 0.0))
+        self.form.angleRotSpinBox.setValue(
+            pref.GetFloat("TPPCamAngleRot", 0.0))
         # defaults based on Pi HQ camera, 6mm focal length
         self.form.aspectWSpinBox.setValue(pref.GetFloat("TPPCamAspectW", 6.29))
         self.form.aspectHSpinBox.setValue(pref.GetFloat("TPPCamAspectH", 4.71))
@@ -102,4 +110,3 @@ class VRPreferencesPage:
             self.form.movArchRadioButton.setChecked(True)
         elif mov_str == "FREE":
             self.form.movFreeRadioButton.setChecked(True)
-

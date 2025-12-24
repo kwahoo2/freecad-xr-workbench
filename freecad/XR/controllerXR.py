@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2023-2025 Adrian Przekwas adrian.v.przekwas@gmail.com   *
 # *                                                                         *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
@@ -207,7 +207,7 @@ class xrController:
             vp_reg,
             near_plane,
             far_plane,
-            camera = None):
+            camera=None):
         ray_axis = self.find_ray_axis()
         ray_start_vec = self.con_transform.translation.getValue()
         ray_end_vec = self.con_transform.translation.getValue() - ray_axis
@@ -260,7 +260,8 @@ class xrController:
     def get_rotation_from_picked_normal(self):
         normal = self.picked_normal
         # SbRotation (from, to)
-        rot = SbRotation(SbVec3f(0, 0, 1), normal) # default for SbRotation axis is (0.0, 0.0, 1.0)
+        # default for SbRotation axis is (0.0, 0.0, 1.0)
+        rot = SbRotation(SbVec3f(0, 0, 1), normal)
         return rot.getValue()
 
     def update_lever(self, x_lever_value, y_lever_value):

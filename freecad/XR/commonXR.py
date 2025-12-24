@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2023-2025 Adrian Przekwas adrian.v.przekwas@gmail.com   *
 # *                                                                         *
 # *   Based on gl_example.py https://github.com/cmbruns/pyopenxr_examples   *
 # *                                                                         *
@@ -488,7 +488,8 @@ class XRwidget(QOpenGLWidget):
         self.labels_separator = SoSeparator()
         self.labels_separator.addChild(
             self.xr_con[self.secondary_con].get_global_transf())
-        self.status_label = menuCoin.labelWidget("label", "Pick teleport destination", 0.2)
+        self.status_label = menuCoin.labelWidget(
+            "label", "Pick teleport destination", 0.2)
         self.status_label.set_location(
             SbVec3f(-0.1, 0.0, 0.0), SbRotation(0, 0, 0, 0))
         self.labels_separator.addChild(self.status_label.get_scenegraph())
@@ -1749,7 +1750,6 @@ class XRwidget(QOpenGLWidget):
                     self.cam_picking_root, self.pick_vp_reg, self.near_plane, self.far_plane,
                     self.pick_camera)
 
-
     # this function selects, then drags a FreeCAD model
     # press trigger to select object
     # move controller with trigger pressed to move the object
@@ -2139,7 +2139,8 @@ class XRwidget(QOpenGLWidget):
                         self.fbo_tpp.bind()
                         w = self.fbo_tpp.size().width()
                         h = self.fbo_tpp.size().height()
-                        self.gl_fc.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+                        self.gl_fc.glBlendFunc(
+                            GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
                         self.gl_fc.glEnable(GL.GL_BLEND)
                         self.vp_reg.setViewportPixels(0, 0, w, h)
                         self.m_sceneManager.setViewportRegion(self.vp_reg)

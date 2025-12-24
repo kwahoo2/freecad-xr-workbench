@@ -1,6 +1,6 @@
 # ***************************************************************************
 # *                                                                         *
-# *   Copyright (c) 2023 Adrian Przekwas adrian.v.przekwas@gmail.com        *
+# *   Copyright (c) 2023-2025 Adrian Przekwas adrian.v.przekwas@gmail.com        *
 # *                                                                         *
 # *   This program is free software; you can redistribute it and/or modify  *
 # *   it under the terms of the GNU Lesser General Public License (LGPL)    *
@@ -23,6 +23,7 @@
 from FreeCADGui import Workbench
 import FreeCADGui as Gui
 from freecad.XR import XRWorkbench_rc
+
 
 class XRWorkbench (Workbench):
     def __init__(self):
@@ -59,21 +60,25 @@ static char * ico_xpm[] = {
         """This function is executed when the workbench is first activated.
         It is executed once in a FreeCAD session followed by the Activated function.
         """
-        from freecad.XR import startXR, stopXR, enableMirror, disableMirror, reloadScenegraph, toggleTPPCamera # import here all the needed files that create your FreeCAD commands
-        self.list = ["startXR", "stopXR", "enableMirror", "disableMirror", "reloadScenegraph", "toggleTPPCamera",] # a list of command names created in the line above
+        from freecad.XR import startXR, stopXR, enableMirror, disableMirror, reloadScenegraph, toggleTPPCamera  # import here all the needed files that create your FreeCAD commands
+        self.list = ["startXR", "stopXR", "enableMirror", "disableMirror", "reloadScenegraph",
+                     "toggleTPPCamera",]  # a list of command names created in the line above
 
         from PySide.QtCore import QT_TRANSLATE_NOOP
-        self.appendToolbar(QT_TRANSLATE_NOOP("Workbench", "Virtual Reality viewer"), self.list) # creates a new toolbar with your commands
-        self.appendMenu(QT_TRANSLATE_NOOP("Workbench", "Virtual Reality"), self.list) # creates a new menu
+        # creates a new toolbar with your commands
+        self.appendToolbar(QT_TRANSLATE_NOOP(
+            "Workbench", "Virtual Reality viewer"), self.list)
+        self.appendMenu(QT_TRANSLATE_NOOP(
+            "Workbench", "Virtual Reality"), self.list)  # creates a new menu
         # self.appendMenu(["An existing Menu", "My submenu"], self.list) # appends a submenu to an existing menu
 
         from freecad.XR import preferences
         Gui.addLanguagePath(":/translations")
         Gui.addIconPath(":/icons")
         Gui.addPreferencePage(
-            preferences.VRPreferencesPage, QT_TRANSLATE_NOOP("QObject", "Virtual Reality")
+            preferences.VRPreferencesPage, QT_TRANSLATE_NOOP(
+                "QObject", "Virtual Reality")
         )
-
 
     def Activated(self):
         """This function is executed whenever the workbench is activated"""
@@ -86,11 +91,13 @@ static char * ico_xpm[] = {
     def ContextMenu(self, recipient):
         """This function is executed whenever the user right-clicks on screen"""
         # "recipient" will be either "view" or "tree"
-        self.appendContextMenu("VR commands", self.list) # add commands to the context menu
+        # add commands to the context menu
+        self.appendContextMenu("VR commands", self.list)
 
     def GetClassName(self):
         # This function is mandatory if this is a full Python workbench
         # This is not a template, the returned string should be exactly "Gui::PythonWorkbench"
         return "Gui::PythonWorkbench"
+
 
 Gui.addWorkbench(XRWorkbench())
