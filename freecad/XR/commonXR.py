@@ -1935,7 +1935,6 @@ class XRwidget(QOpenGLWidget):
                 False)  # button not toggleable
         elif (name == "new_body_button"):
             docInter.create_body(add_obj=True)
-            self.status_label.set_text(docInter.get_selection_label())
             self.edit_menu.new_body_button.select(False)
         elif (name == "pad_button"):
             docInter.create_pad()
@@ -1944,6 +1943,10 @@ class XRwidget(QOpenGLWidget):
         elif (name == "toggle_body_vis_button"):
             docInter.toggle_active_body_visibility()
             self.edit_menu.toggle_body_vis_button.select(False)
+        elif (name == "deselect_body_button"):
+            docInter.deselect_body()
+            self.edit_menu.deselect_body_button.select(False)
+        self.status_label.set_text(docInter.get_selection_label())
 
     def update_qt_widgets(self):
         # Qt widgets rendering and click simulation

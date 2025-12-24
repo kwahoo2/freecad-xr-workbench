@@ -236,6 +236,11 @@ def clear_selection():
     curr_draggable_obj = None
 
 
+def deselect_body():
+    if get_active_body():
+        Gui.ActiveDocument.ActiveView.setActiveObject("pdbody", None)
+
+
 def get_selection_label():
     s = ""
     sub = ""
