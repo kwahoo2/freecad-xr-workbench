@@ -29,7 +29,7 @@
 
   <url type="documentation">https://github.com/kwahoo2/freecad-xr-workbench/tree/ec7591407cdca6d69271ac58bfa31e2c64a6b139/Resources/doc</url>
 
-  <icon>Gui/Resources/icons/preferences-virtual_reality.svg</icon>
+  <icon>Resources/Gui/Resources/icons/preferences-virtual_reality.svg</icon>
 
   <content>
     <workbench>
