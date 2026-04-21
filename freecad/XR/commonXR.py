@@ -844,10 +844,8 @@ class XRwidget(QOpenGLWidget):
         elif windowing_interface == 'EGL':
             display = EGL.eglGetCurrentDisplay()
             context = EGL.eglGetCurrentContext()
-            self.graphics_binding.context = ctypes.cast(
-                context, ctypes.c_void_p)
-            self.graphics_binding.display = ctypes.cast(
-                display, ctypes.c_void_p)
+            self.graphics_binding.display = display
+            self.graphics_binding.context = context
             self.graphics_binding.get_proc_address = ctypes.cast(
                 EGL.eglGetProcAddress.load(), xr.PFN_xrEglGetProcAddressMNDX)
             config_id = EGL.EGLint()
@@ -856,7 +854,7 @@ class XRwidget(QOpenGLWidget):
             num_configs = EGL.EGLint()
             # get number of available configs first
             EGL.eglGetConfigs(display, None, 0, ctypes.byref(num_configs))
-            configs = (ctypes.c_void_p * num_configs.value)()
+            configs = (EGL.EGLConfig * num_configs.value)()
             EGL.eglGetConfigs(display, configs,
                               num_configs.value, ctypes.byref(num_configs))
             config = None
