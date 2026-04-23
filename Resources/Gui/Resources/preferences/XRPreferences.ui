@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>487</width>
-    <height>606</height>
+    <height>684</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -45,6 +45,20 @@
        <property name="maximum">
         <number>100</number>
        </property>
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="2">
+      <widget class="QLabel" name="label_14">
+       <property name="text">
+        <string>Picking Radius</string>
+       </property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
+      <widget class="QSlider" name="pickRadiusSlider">
        <property name="orientation">
         <enum>Qt::Orientation::Horizontal</enum>
        </property>
@@ -147,14 +161,31 @@
       </widget>
      </item>
      <item row="14" column="1">
-      <widget class="QRadioButton" name="movArchRadioButton">
-       <property name="text">
-        <string>A&amp;rch</string>
+      <layout class="QHBoxLayout" name="horizontalLayout_11">
+       <property name="leftMargin">
+        <number>0</number>
        </property>
-       <attribute name="buttonGroup">
-        <string notr="true">buttonGroup</string>
-       </attribute>
-      </widget>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <widget class="QRadioButton" name="movArchRadioButton">
+         <property name="text">
+          <string>A&amp;rch</string>
+         </property>
+         <attribute name="buttonGroup">
+          <string notr="true">buttonGroup</string>
+         </attribute>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="lockFloorCheckBox">
+         <property name="text">
+          <string>Lock to floor</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
      </item>
      <item row="15" column="1">
       <widget class="QRadioButton" name="movFreeRadioButton">
@@ -384,20 +415,6 @@
        </property>
        <property name="value">
         <double>1.000000000000000</double>
-       </property>
-      </widget>
-     </item>
-     <item row="4" column="0" colspan="2">
-      <widget class="QLabel" name="label_14">
-       <property name="text">
-        <string>Picking Radius</string>
-       </property>
-      </widget>
-     </item>
-     <item row="5" column="0" colspan="2">
-      <widget class="QSlider" name="pickRadiusSlider">
-       <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
        </property>
       </widget>
      </item>

@@ -296,6 +296,14 @@ class mainCoinMenu(coinMenu):
                 0, 0, 0, 0))
         self.widget_list.append(self.arch_mov_button)
 
+        # (Arch-only) movement with floor detection
+        self.lock_floor_button = buttonWidget("lock_floor_button", "Lock To Floor", 0, 0.18)
+        self.lock_floor_button.set_location(
+            SbVec3f(
+                0.0, 0.05, -0.3), SbRotation(
+                0, 0, 0, 0))
+        self.widget_list.append(self.lock_floor_button)
+
         self.lin_speed_slider = sliderWidget(
             "lin_speed_slider", "Linear Speed")
         self.lin_speed_slider.set_location(

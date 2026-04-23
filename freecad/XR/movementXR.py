@@ -22,6 +22,7 @@
 
 from pivy.coin import SbVec3f, SbRotation
 from pivy.coin import SoTransform
+from pivy.coin import SoRayPickAction
 from dataclasses import dataclass
 
 # only for key enums
@@ -223,3 +224,19 @@ class xrMovement:
         corr_rot = SbRotation(loc_axis, axis)
         rot = rot * corr_rot
         return rot
+
+    def find_floor(self, pos, hmdpos, separator, vp_reg):
+        # shoots a ray vertically from the player location to find a floor (experimental)
+        con_pick_action = SoRayPickAction(vp_reg)
+        con_pick_action.setRay(
+                pos + SbVec3f(hmdpos.getValue()[0], 1.0, hmdpos.getValue()[2]),
+                SbVec3f(0.0, -1.0, 0.0), 0.01, 2.0)
+        con_pick_action.apply(separator)
+        picked_p_coords = SbVec3f(0.0, 0.0, 0.0)
+        picked_point = con_pick_action.getPickedPoint()
+        if (picked_point):
+            picked_p_coords = picked_point.getPoint()
+            h_diff = picked_p_coords.getValue()[1]
+        else:
+            h_diff = pos.getValue()[1]
+        return h_diff

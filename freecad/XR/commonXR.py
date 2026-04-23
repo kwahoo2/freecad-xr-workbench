@@ -634,6 +634,8 @@ class XRwidget(QOpenGLWidget):
             self.con_menu.select_widget_by_name("free_mov_button")
         elif (movement_type == "ARCH"):
             self.con_menu.select_widget_by_name("arch_mov_button")
+        self.lock_to_floor = pref.preferences().GetBool("LockToFloor", False)
+        self.con_menu.lock_floor_button.select(self.lock_to_floor)
         self.con_menu.select_widget_by_name(
             "lin_speed_slider", self.user_mov_speed)
         self.con_menu.select_widget_by_name(
@@ -1869,6 +1871,11 @@ class XRwidget(QOpenGLWidget):
             rot = self.world_transform.rotation.getValue()
             rot = self.mov_xr.reset_rot_axis(rot, SbVec3f(0, 1, 0))
             self.world_transform.rotation.setValue(rot)
+        elif (name == "lock_floor_button"):
+            self.lock_to_floor = not self.lock_to_floor
+            pref.preferences().SetBool(
+                "LockToFloor", self.lock_to_floor)
+            self.con_menu.lock_floor_button.select(self.lock_to_floor)
         elif (name == "lin_speed_slider"):
             self.user_mov_speed = widget.value
             pref.preferences().SetInt("LinearSpeed",
@@ -1995,6 +2002,14 @@ class XRwidget(QOpenGLWidget):
             self.xr_con[self.primary_con],
             self.xr_con[self.secondary_con],
             final_mov_speed, final_rot_speed))
+        # some movement modes may allow locking user's vertical location to a floor below
+        if self.lock_to_floor:
+            if self.mov_xr.movement_type == "ARCH":
+                pos = self.world_transform.translation.getValue()
+                h_diff = self.mov_xr.find_floor(pos, self.hmdpos,
+                                                self.world_separator, self.vp_reg)
+                self.world_transform.translation.setValue(SbVec3f(pos.getValue()[0],
+                                                                h_diff, pos.getValue()[2]))
 
     def update_xr_interaction(self):
         if pref.pref_updated:

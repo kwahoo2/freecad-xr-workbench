@@ -62,6 +62,7 @@ class VRPreferencesPage:
             pref.SetString("Movement", "ARCH")
         elif self.form.movFreeRadioButton.isChecked():
             pref.SetString("Movement", "FREE")
+        pref.SetBool("LockToFloor", self.form.lockFloorCheckBox.isChecked())
         pref.SetFloat("TPPCamXTransl", self.form.xTransSpinBox.value())
         pref.SetFloat("TPPCamYTransl", self.form.yTransSpinBox.value())
         pref.SetFloat("TPPCamZTransl", self.form.zTransSpinBox.value())
@@ -110,3 +111,5 @@ class VRPreferencesPage:
             self.form.movArchRadioButton.setChecked(True)
         elif mov_str == "FREE":
             self.form.movFreeRadioButton.setChecked(True)
+        self.form.lockFloorCheckBox.setChecked(
+            pref.GetBool("LockToFloor", False))
