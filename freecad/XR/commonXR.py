@@ -347,6 +347,7 @@ class XRwidget(QOpenGLWidget):
         self.logger.debug("Offscreen OpenGL context: %s", self.ctx)
         self.mirror_window = True
         self.tracker_support = False
+        self.steam_frame_support = False # Steam Frame controllers bindings extension
         self.tpp_camera = None
         self.tpp_cam_enabled = False
         self.tpp_cam_available = False
@@ -675,6 +676,8 @@ class XRwidget(QOpenGLWidget):
             self.enable_debug = False
         if xr.HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME in discovered_extensions:
             self.tracker_support = True
+        if "XR_VALVE_frame_controller_interaction" in discovered_extensions:
+            self.steam_frame_support = True
         requested_extensions = [xr.KHR_OPENGL_ENABLE_EXTENSION_NAME]
         if windowing_interface == 'EGL':
             requested_extensions.append(xr.MNDX_EGL_ENABLE_EXTENSION_NAME)
@@ -683,6 +686,9 @@ class XRwidget(QOpenGLWidget):
         if self.tracker_support:
             requested_extensions.append(
                 xr.HTCX_VIVE_TRACKER_INTERACTION_EXTENSION_NAME)
+        if self.steam_frame_support:
+            requested_extensions.append(
+                "XR_VALVE_frame_controller_interaction")
         for extension in requested_extensions:
             assert extension in discovered_extensions
         if pref.preferences().GetBool("UseHighestOpenXR", False):
@@ -1180,6 +1186,39 @@ class XRwidget(QOpenGLWidget):
                     microsoft_motion_bindings),
             ),
         )
+
+        if self.steam_frame_support:
+            # Suggest bindings for the Valve Steam Frame Controller.
+            valve_steam_frame_bindings = [
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[0]),
+                xr.ActionSuggestedBinding(self.pose_action, pose_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.x_lever_action, thumbstick_x_path[1]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[0]),
+                xr.ActionSuggestedBinding(
+                    self.y_lever_action, thumbstick_y_path[1]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[0]),
+                xr.ActionSuggestedBinding(self.grab_action, trigger_value_path[1]),
+
+            ]
+            xr.suggest_interaction_profile_bindings(
+                instance=self.instance,
+                suggested_bindings=xr.InteractionProfileSuggestedBinding(
+                    interaction_profile=xr.string_to_path(
+                        self.instance,
+                        "/interaction_profiles/valve/frame_controller_valve",
+                    ),
+                    count_suggested_bindings=len(valve_steam_frame_bindings),
+                    suggested_bindings=(
+                        xr.ActionSuggestedBinding *
+                        len(valve_steam_frame_bindings))(
+                        *
+                        valve_steam_frame_bindings),
+                ),
+            )
 
         if self.api_version.major >= 1 and self.api_version.minor >= 1:
             self.logger.debug("Version 1.1 interaction profile bindings")
