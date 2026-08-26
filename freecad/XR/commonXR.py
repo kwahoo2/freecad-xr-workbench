@@ -353,6 +353,9 @@ class XRwidget(QOpenGLWidget):
         self.tpp_cam_available = False
         self.api_version = None  # OpenXR version of created Instance
 
+        self.ar_mode = False # VR/AR selector
+        self.blend_mode = xr.EnvironmentBlendMode.OPAQUE
+
         self.hand_count = 2
         self.old_time = 0
         # set which controller should be used for primary functionality (eg.
@@ -366,6 +369,7 @@ class XRwidget(QOpenGLWidget):
 
         self.prepare_xr_instance()
         self.prepare_xr_system()
+        self.check_xr_blend_modes()
         self.prepare_window()
         self.prepare_xr_session()
         self.prepare_xr_swapchain()
@@ -761,6 +765,27 @@ class XRwidget(QOpenGLWidget):
         result = xr.exception.check_result(xr.Result(result))
         if result.is_exception():
             raise result
+
+    def check_xr_blend_modes(self):
+        self.ar_mode = pref.preferences().GetBool("AR_Mode", False)
+        blend_modes =  xr.enumerate_environment_blend_modes(self.instance, self.system_id, xr.ViewConfigurationType.PRIMARY_STEREO)
+        blend_mode_names = {
+            xr.EnvironmentBlendMode.OPAQUE: "OPAQUE (1)",
+            xr.EnvironmentBlendMode.ADDITIVE: "ADDITIVE (2)",
+            xr.EnvironmentBlendMode.ALPHA_BLEND: "ALPHA_BLEND (3)",
+        }
+        blend_mode_list = [blend_mode_names.get(mode, f"UNKNOWN({mode})") for mode in blend_modes]
+        print ("Available blend modes: ", blend_mode_list)
+        if (xr.EnvironmentBlendMode.ALPHA_BLEND in blend_modes):
+            if self.ar_mode:
+                self.blend_mode = xr.EnvironmentBlendMode.ALPHA_BLEND
+                print ("Using ALPHA_BLEND (3)")
+        elif (xr.EnvironmentBlendMode.ADDITIVE in blend_modes):
+            if self.ar_mode:
+                self.blend_mode = xr.EnvironmentBlendMode.ADDITIVE
+                print ("Using ADDITIVE (2)")
+        elif self.ar_mode:
+            print ("AR Mode cannot be enabled, no suitable blending mode found!")
 
     def initializeGL(self):
         self.gl_fc = QOpenGLFunctions_4_5_Compatibility()
@@ -1563,7 +1588,7 @@ class XRwidget(QOpenGLWidget):
         self.ctx.makeCurrent(self.offs_surface)
         frame_end_info = xr.FrameEndInfo(
             self.frame_state.predicted_display_time,
-            xr.EnvironmentBlendMode.OPAQUE
+            self.blend_mode
         )
         if self.frame_state.should_render:
             for eye_index in range(2):
@@ -2160,7 +2185,13 @@ class XRwidget(QOpenGLWidget):
                 self.m_sceneManager.setViewportRegion(self.vp_reg)
                 self.m_sceneManager.setSceneGraph(self.root_scene[0])
                 self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
-                self.m_sceneManager.render()
+                # if AR mode (passtrought) is enabled clear background with alpha 0
+                # do not allow clearing window by Coin3D
+                # ALPHA_BLEND requires alpha channel, ADDITIVE ignores alpha and makes everything black transparent
+                if self.ar_mode:
+                    self.gl_ofc.glClearColor(0.0, 0.0, 0.0, 0.0)
+                    self.gl_ofc.glClear(GL.GL_COLOR_BUFFER_BIT)
+                self.m_sceneManager.render(not self.ar_mode, True) # do not clear with predefined colour
                 self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
 
                 self.gl_ofc.glEnable(GL.GL_BLEND)
@@ -2169,7 +2200,10 @@ class XRwidget(QOpenGLWidget):
                 self.m_sceneManager.setViewportRegion(self.vp_reg)
                 self.m_sceneManager.setSceneGraph(self.root_scene[1])
                 self.gl_ofc.glEnable(GL.GL_DEPTH_TEST)
-                self.m_sceneManager.render()
+                if self.ar_mode:
+                    self.gl_ofc.glClearColor(0.0, 0.0, 0.0, 0.0)
+                    self.gl_ofc.glClear(GL.GL_COLOR_BUFFER_BIT)
+                self.m_sceneManager.render(not self.ar_mode, True)
                 self.gl_ofc.glDisable(GL.GL_DEPTH_TEST)
                 self.gl_ofc.glDisable(GL.GL_SCISSOR_TEST)
 

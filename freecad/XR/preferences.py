@@ -73,6 +73,7 @@ class VRPreferencesPage:
         pref.SetFloat("TPPCamAspectW", self.form.aspectWSpinBox.value())
         pref.SetFloat("TPPCamAspectH", self.form.aspectHSpinBox.value())
         pref.SetFloat("TPPCamVFov", self.form.vertFovSpinBox.value())
+        pref.SetBool("AR_Mode", self.form.startARmodeCheckBox.isChecked())
         global pref_updated
         pref_updated = True
 
@@ -113,3 +114,5 @@ class VRPreferencesPage:
             self.form.movFreeRadioButton.setChecked(True)
         self.form.lockFloorCheckBox.setChecked(
             pref.GetBool("LockToFloor", False))
+        self.form.startARmodeCheckBox.setChecked(
+            pref.GetBool("AR_Mode", False))
