@@ -114,6 +114,21 @@ In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 
 `STEAMVR_LH_ENABLE=true monado-service`
 
+## AppImages and Wayland
+
+FreeCAD Linux AppImages force use of X11, even if the desktop is running Wayland. In this case VR addon will fail with an error message:
+
+`The given graphics device is not in a valid state. The graphics device could be lost or initialized without meeting graphics requirements.`
+
+The workaround:
+
+1. Unpack the AppImage: `./FreeCAD_xxx.appimage --appimage-extract`
+2. Find `AppRun` file in `squashfs-root` directory and open it in a text editor
+3. Comment out the following line:
+`#export QT_QPA_PLATFORM=${FREECAD_QT_QPA_PLATFORM:-xcb}`
+4. Execute the modified script:
+`./AppRun`
+
 ## Tracked third-person camera
 
 The `Toggle third-person camera` button replaces the VR HMD mirror view with a view based on an additional tracker location. The tracker's role has to be set as `CAMERA` in the OpenXR runtime options. Check [TPP Camera Tracker](Resources/doc/TPP_Camera_Tracker.md) for info about assigning roles.
