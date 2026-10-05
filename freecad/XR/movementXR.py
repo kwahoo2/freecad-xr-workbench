@@ -149,7 +149,7 @@ class xrMovement:
 
         trsl = SbVec3f(self.key_mov.sidestep,
                        self.key_mov.altitude, self.key_mov.walk)
-        trsl_transf = hmdrot.multVec(-trsl * mov_speed)
+        trsl_transf = hmdrot.multVec(trsl * -mov_speed)
         transf_kb.translation.setValue(trsl_transf)
         return transf_kb
 

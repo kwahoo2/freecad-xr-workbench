@@ -224,7 +224,7 @@ class xrController:
         else:
             # direction is reversed controller Z axis
             con_pick_action.setRay(
-                ray_start_vec, -ray_axis, near_plane, far_plane)
+                ray_start_vec, -1 * ray_axis, near_plane, far_plane)
 
         self.ray_vtxs.vertex.set1Value(0, ray_start_vec)
         self.ray_vtxs.vertex.set1Value(1, ray_end_vec)
