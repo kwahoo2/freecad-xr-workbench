@@ -610,9 +610,12 @@ class XRwidget(QOpenGLWidget):
 
     def setup_qt_widgets(self):
         # initialize 2D Qt widgets rendering in the 3D space
-        self.qt_widget_renders = (qWRen.qtWidgetRender(name="Model", pos=SbVec3f(0.1, 0.2, -0.5)),  # tree view, Model (QDockWidget)
-                                  # tasks view, Tasks (QDockWidget)
-                                  qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.1, -0.2, -0.5)))
+        self.qt_widget_renders = tuple(
+            w for w in (
+                qWRen.qtWidgetRender(name="Tree view", pos=SbVec3f(0.1, 0.2, -0.5)),
+                qWRen.qtWidgetRender(name="Tasks", pos=SbVec3f(0.1, -0.2, -0.5))
+            ) if w.widget is not None
+        )
         self.qt_widget_renders[0].change_z_offset(
             0.02)  # move 1 widget closer to the user
 
