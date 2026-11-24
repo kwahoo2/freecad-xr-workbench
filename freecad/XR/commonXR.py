@@ -290,6 +290,7 @@ class XRwidget(QOpenGLWidget):
         self.fbo = None
         self.fbo_msaa = None
         self.fbo_texture = None
+        self.fbo_mirror = None
         self.fbo_tpp = None
         self.fbo_tpp_texture = None
         self.quit = False
@@ -858,6 +859,20 @@ class XRwidget(QOpenGLWidget):
         self.logger.debug("Is mirror texture created: %s",
                           self.fbo_texture.isCreated())
         self.fbo.release()
+        # dedicated FBO for the mirror view, with fbo_texture attached;
+        # the mirror is produced by blitting fbo_msaa into it, so no
+        # runtime-owned swapchain image is ever read back
+        self.fbo_mirror = QOpenGLFramebufferObject(w, h)
+        self.fbo_mirror.bind()
+        if not self.fbo_mirror.isValid():
+            raise Exception("Mirror FBO is not valid!")
+        self.gl_ofc.glFramebufferTexture(
+            GL.GL_FRAMEBUFFER,
+            GL.GL_COLOR_ATTACHMENT0,
+            self.fbo_texture.textureId(),
+            0,
+        )
+        self.fbo_mirror.release()
         self.gl_ofc.glBlendFunc(
             GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
         self.gl_ofc.glEnable(GL.GL_BLEND)
@@ -906,7 +921,6 @@ class XRwidget(QOpenGLWidget):
         self.logger.debug(
             "GLX context=%s drawable=%#x screen=%d fbconfig_id=%d",
             context, drawable, screen.value, fbconfig_id.value)
-        print(f"XR: GLX context={context} drawable={getattr(drawable, 'value', drawable):#x} screen={screen.value} fbconfig_id={fbconfig_id.value}")
 
         fbconfig = None
         if fbconfig_id.value != 0:
@@ -2310,6 +2324,19 @@ class XRwidget(QOpenGLWidget):
                 self.fbo.blitFramebuffer(self.fbo, self.fbo_msaa)
                 self.render_duration = ren_timer.nsecsElapsed()
 
+                if (self.mirror_window
+                        and not (self.tpp_cam_enabled
+                                 and self.tpp_cam_available)
+                        and self.fbo_mirror is not None):
+                    # Blit the rendered frame from our own MSAA FBO into the
+                    # mirror FBO (which has fbo_texture attached). Reading back
+                    # the runtime-owned swapchain image (e.g. via
+                    # glCopyTextureSubImage2D) is unreliable on Wayland/EGL,
+                    # where swapchain images are EGLImage-backed.
+                    self.fbo_mirror.bind()
+                    self.fbo_mirror.blitFramebuffer(self.fbo_mirror, self.fbo_msaa)
+                    self.fbo_mirror.release()
+
                 ri = xr.SwapchainImageReleaseInfo()
                 xr.release_swapchain_image(self.swapchain, ri)
                 self.fbo.release()
@@ -2339,16 +2366,6 @@ class XRwidget(QOpenGLWidget):
                             w, h,
                         )
                         self.fbo_tpp.release()
-                    else:
-                        self.fbo.bind()
-                        self.gl_ofc.glCopyTextureSubImage2D(
-                            self.fbo_texture.textureId(),
-                            0,
-                            0, 0,
-                            0, 0,
-                            w, h,
-                        )
-                        self.fbo.release()
                     # update the QOpenGLWidget
                     self.update()
                 self.ctx.doneCurrent()
@@ -2360,7 +2377,13 @@ class XRwidget(QOpenGLWidget):
             texture = self.fbo_tpp_texture
         else:
             texture = self.fbo_texture
-        QOpenGLFramebufferObject.bindDefault()
+        # Draw into the widget's own FBO (Qt composites it into the window).
+        # QOpenGLFramebufferObject.bindDefault() would bind FBO 0 instead:
+        # on X11/GLX that is the window back buffer (works), but on
+        # Wayland/EGL the widget FBO is what gets composited, so drawing
+        # to FBO 0 leaves the widget FBO uninitialized (random garbage).
+        window_fb = self.defaultFramebufferObject()
+        self.gl_fc.glBindFramebuffer(GL.GL_FRAMEBUFFER, window_fb)
         # Since glBlitFramebuffer for blitting FBOs that belong
         # to two different (shared) contexts is not allowed for some implementations,
         # textured quad is used instead.
@@ -2371,7 +2394,16 @@ class XRwidget(QOpenGLWidget):
         self.gl_fc.glOrtho(-1.0, 1.0, -1.0, 1.0, -1.0, 1.0)
         self.gl_fc.glMatrixMode(GL.GL_MODELVIEW)
         self.gl_fc.glLoadIdentity()
+        self.gl_fc.glClearColor(0.6, 0.6, 0.8, 1.0)  # same as scene background, opaque
         self.gl_fc.glClear(GL.GL_COLOR_BUFFER_BIT)
+        # The mirror texture has alpha 0 in the background (Coin clears with
+        # alpha 0). Without blending, the quad would write alpha 0 into the
+        # widget FBO; on Wayland the compositor then treats those pixels as
+        # transparent and shows garbage behind the window. Blend over the
+        # opaque clear color and force the output alpha to 1.
+        self.gl_fc.glEnable(GL.GL_BLEND)
+        self.gl_fc.glBlendFuncSeparate(
+            GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA, GL.GL_ZERO, GL.GL_ONE)
         self.gl_fc.glEnable(GL.GL_TEXTURE_2D)
         texture.bind()
         self.gl_fc.glBegin(GL.GL_QUADS)
@@ -2385,6 +2417,7 @@ class XRwidget(QOpenGLWidget):
         self.gl_fc.glVertex2f(-1.0, 1.0)
         self.gl_fc.glEnd()
         texture.release()
+        self.gl_fc.glDisable(GL.GL_BLEND)
 
     def terminate(self):
         self.timer.stop()
@@ -2401,6 +2434,9 @@ class XRwidget(QOpenGLWidget):
         if self.fbo_texture is not None:
             self.fbo_texture.destroy()
             self.fbo_texture = None
+        if self.fbo_mirror is not None:
+            self.fbo_mirror.release()
+            self.fbo_mirror = None
         if self.fbo_tpp is not None:
             self.fbo_tpp.release()
             self.fbo_tpp = None
