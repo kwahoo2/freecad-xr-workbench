@@ -868,6 +868,90 @@ class XRwidget(QOpenGLWidget):
             self.render_target_size[0] // 4,
             self.render_target_size[1] // 4)
 
+    def glx_query_current_fbconfig(self):
+        """Return (glx_fbconfig, visualid) matching the current GLX context.
+
+        OpenXR runtimes reject XrGraphicsBindingOpenGLXlibKHR
+        with XR_ERROR_GRAPHICS_DEVICE_INVALID ("The given graphics device is
+        not in a valid state...") when glxFBConfig is NULL or visualid is 0,
+        so both fields must be filled in before xrCreateSession.
+        """
+        display = GLX.glXGetCurrentDisplay()
+        context = GLX.glXGetCurrentContext()
+        drawable = GLX.glXGetCurrentDrawable()
+        if not context:
+            raise Exception("No current GLX context - cannot build the OpenXR graphics binding")
+        # GLX 1.3 context/config attributes (numeric fallbacks from glx.h)
+        GLX_SCREEN = int(getattr(GLX, "GLX_SCREEN", 0x800C))
+        GLX_VISUAL_ID = int(getattr(GLX, "GLX_VISUAL_ID", 0x800B))
+        GLX_FBCONFIG_ID = int(getattr(GLX, "GLX_FBCONFIG_ID", 0x8013))
+        # PyOpenGL declares the 2nd arg of glXGetConfig as POINTER(XVisualInfo),
+        # so a GLXFBConfig must be cast to that exact pointer type
+        # (a plain c_void_p is rejected by ctypes argument checking)
+        xvisual_ptr = ctypes.POINTER(GLX.XVisualInfo)
+
+        screen = ctypes.c_int(0)
+        GLX.glXQueryContext(display, context, GLX_SCREEN, ctypes.byref(screen))
+        if screen.value < 0:
+            screen.value = 0
+
+        # FBConfig ID of the current context (GLX 1.3)
+        fbconfig_id = ctypes.c_int(0)
+        ok = GLX.glXQueryContext(display, context, GLX_FBCONFIG_ID, ctypes.byref(fbconfig_id))
+        if not ok or fbconfig_id.value == 0:
+            # fallback: FBConfig ID of the current drawable (e.g. a pbuffer)
+            fbconfig_id_u = ctypes.c_uint(0)
+            GLX.glXQueryDrawable(display, drawable, GLX_FBCONFIG_ID, ctypes.byref(fbconfig_id_u))
+            fbconfig_id.value = fbconfig_id_u.value
+        self.logger.debug(
+            "GLX context=%s drawable=%#x screen=%d fbconfig_id=%d",
+            context, drawable, screen.value, fbconfig_id.value)
+        print(f"XR: GLX context={context} drawable={getattr(drawable, 'value', drawable):#x} screen={screen.value} fbconfig_id={fbconfig_id.value}")
+
+        fbconfig = None
+        if fbconfig_id.value != 0:
+            count = ctypes.c_int(0)
+            fbconfigs = GLX.glXGetFBConfigs(display, screen.value, ctypes.byref(count))
+            self.logger.debug("glXGetFBConfigs: count=%d", count.value)
+            if fbconfigs is not None:
+                for i in range(count.value):
+                    cid = ctypes.c_int()
+                    config_ptr = ctypes.cast(fbconfigs[i], xvisual_ptr)
+                    GLX.glXGetConfig(display, config_ptr, GLX_FBCONFIG_ID, ctypes.byref(cid))
+                    if cid.value == fbconfig_id.value:
+                        fbconfig = fbconfigs[i]
+                        break
+        if fbconfig is None:
+            # fallback: choose a suitable RGBA/depth24 config ourselves
+            attribs = (ctypes.c_int * 17)(
+                int(getattr(GLX, "GLX_RENDER_TYPE", 0x8011)), int(getattr(GLX, "GLX_RGBA_BIT", 0x1)),
+                int(getattr(GLX, "GLX_DRAWABLE_TYPE", 0x8010)),
+                int(getattr(GLX, "GLX_WINDOW_BIT", 0x1)) | int(getattr(GLX, "GLX_PBUFFER_BIT", 0x4)),
+                int(getattr(GLX, "GLX_DOUBLEBUFFER", 0x5)), 1,
+                int(getattr(GLX, "GLX_RED_SIZE", 0x8)), 8,
+                int(getattr(GLX, "GLX_GREEN_SIZE", 0x9)), 8,
+                int(getattr(GLX, "GLX_BLUE_SIZE", 0xA)), 8,
+                int(getattr(GLX, "GLX_ALPHA_SIZE", 0xB)), 8,
+                int(getattr(GLX, "GLX_DEPTH_SIZE", 0xC)), 24,
+                0)  # None terminator
+            n = ctypes.c_int(0)
+            chosen = GLX.glXChooseFBConfig(display, screen.value, attribs, ctypes.byref(n))
+            if chosen is not None and n.value > 0:
+                fbconfig = chosen[0]
+                self.logger.debug("glXChooseFBConfig fallback: n=%d", n.value)
+            else:
+                raise Exception("Failed to find or choose a GLXFBConfig for the current GLX context")
+
+        visualid = ctypes.c_int(0)
+        GLX.glXGetConfig(display, ctypes.cast(fbconfig, xvisual_ptr), GLX_VISUAL_ID, ctypes.byref(visualid))
+        if visualid.value == 0:
+            # pbuffer-only configs have no visual; get the XVisualInfo instead
+            vis = GLX.glXGetVisualFromFBConfig(display, fbconfig)
+            if vis:
+                visualid.value = vis.contents.visualid
+        self.logger.debug("GLX fbconfig=%s visualid=%#x", fbconfig, visualid.value)
+        return fbconfig, visualid.value
+
     def prepare_xr_session(self):
         self.ctx.makeCurrent(self.offs_surface)
         if windowing_interface == 'WGL':
@@ -877,6 +961,11 @@ class XRwidget(QOpenGLWidget):
             self.graphics_binding.x_display = GLX.glXGetCurrentDisplay()
             self.graphics_binding.glx_context = GLX.glXGetCurrentContext()
             self.graphics_binding.glx_drawable = GLX.glXGetCurrentDrawable()
+            # glxFBConfig and visualid must be valid, otherwise the runtime
+            # fails xrCreateSession with XR_ERROR_GRAPHICS_DEVICE_INVALID
+            fbconfig, visualid = self.glx_query_current_fbconfig()
+            self.graphics_binding.glx_fbconfig = fbconfig
+            self.graphics_binding.visualid = visualid
         elif windowing_interface == 'EGL':
             display = EGL.eglGetCurrentDisplay()
             context = EGL.eglGetCurrentContext()
