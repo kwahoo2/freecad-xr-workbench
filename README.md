@@ -116,11 +116,9 @@ In cause of issues with libsurvive tracking, Monado can use SteamVR tracking:
 
 ## AppImages and Wayland
 
-FreeCAD Linux AppImages force use of X11, even if the desktop is running Wayland. In this case VR addon may fail with an error message:
+FreeCAD Linux AppImages force use of X11, even if the desktop is running Wayland.
 
-`The given graphics device is not in a valid state. The graphics device could be lost or initialized without meeting graphics requirements.`
-
-The workaround:
+For the best performance, you may like to force Wayland: 
 
 `FREECAD_QT_QPA_PLATFORM=wayland ./FreeCAD_xxx.appimage`
 
